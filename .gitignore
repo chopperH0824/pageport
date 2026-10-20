@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+release/
+resources/mark
+resources/mark-LICENSE
+artifacts/

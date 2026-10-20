@@ -1,0 +1,23 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install verified Mark
+        run: |
+          curl -fsSL --retry 3 https://github.com/kovetskiy/mark/releases/download/v16.22.0/mark_Linux_x86_64.tar.gz -o /tmp/mark.tar.gz
+          echo "b7a7812f1dc2266d43837028892d6dd1ae38d1b777d8796bb097e1f86da0a3a4  /tmp/mark.tar.gz" | sha256sum -c -
+          mkdir /tmp/mark-extract
+          tar -xzf /tmp/mark.tar.gz -C /tmp/mark-extract
+          sudo install /tmp/mark-extract/mark /usr/local/bin/mark
+      - run: npm ci
+      - run: npm test
+      - run: npm run build

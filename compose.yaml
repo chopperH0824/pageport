@@ -1,0 +1,32 @@
+services:
+  pageport:
+    build: .
+    image: pageport:local
+    container_name: pageport
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4318
+      TRUST_PROXY: "1"
+    ports:
+      - "127.0.0.1:18418:4318"
+    volumes:
+      - pageport-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 768m
+    pids_limit: 100
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4318/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  pageport-data:
