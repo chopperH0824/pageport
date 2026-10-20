@@ -1,6 +1,6 @@
 {
   "name": "pageport",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A local-first Confluence document publisher for macOS, powered by Mark",
   "author": "PagePort contributors",
   "license": "MIT",
@@ -16,6 +16,16 @@
     "package:mac": "npm run build && electron-builder --mac"
   },
   "dependencies": {
+    "@tiptap/react": "^3.0.0",
+    "@tiptap/starter-kit": "^3.0.0",
+    "@tiptap/extension-image": "^3.0.0",
+    "@tiptap/extension-table": "^3.0.0",
+    "@tiptap/extension-task-list": "^3.0.0",
+    "@tiptap/extension-task-item": "^3.0.0",
+    "@tiptap/extension-text-align": "^3.0.0",
+    "@tiptap/extension-highlight": "^3.0.0",
+    "@tiptap/extension-subscript": "^3.0.0",
+    "@tiptap/extension-superscript": "^3.0.0",
     "@vitejs/plugin-react": "^4.7.0",
     "cheerio": "^1.1.2",
     "express": "^5.1.0",
@@ -25,10 +35,13 @@
     "lucide-react": "^0.468.0",
     "mammoth": "^1.11.0",
     "markdown-it": "^14.1.0",
+    "markdown-it-task-lists": "^2.1.1",
     "multer": "^2.0.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "sanitize-html": "^2.17.0",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2",
     "vite": "^6.4.0",
     "yauzl": "^3.2.0"
   },

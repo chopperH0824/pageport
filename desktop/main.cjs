@@ -60,6 +60,10 @@ async function start() {
   window.webContents.on('will-navigate',(event,url)=>{
     if(!url.startsWith(origin+'/')){event.preventDefault();openExternal(url);}
   });
+  window.webContents.on('will-prevent-unload',event=>{
+    const choice=dialog.showMessageBoxSync(window,{type:'warning',buttons:['继续编辑','放弃修改并关闭'],defaultId:0,cancelId:0,message:'文档修改尚未导出',detail:'关闭后未导出的本地修改将丢失。'});
+    if(choice===1)event.preventDefault();
+  });
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     {label:'PagePort',submenu:[{role:'about'},{type:'separator'},{label:'打开备份文件夹',click:()=>shell.openPath(path.join(dataDir,'backups'))},{type:'separator'},{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'},{role:'quit'}]},
     {label:'编辑',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},
@@ -78,17 +82,19 @@ async function start() {
       state=await window.webContents.executeJavaScript(`({
         title:document.title,
         preview:document.querySelector('iframe')?.getAttribute('srcdoc') || '',
-        rendered:document.querySelector('iframe')?.contentDocument?.body?.innerText || '',
+        rendered:document.querySelector('.prose-editor')?.innerText || '',
+        sync:document.querySelector('.preview-state')?.textContent || '',
+        undoDisabled:document.querySelector('[aria-label="撤销 (⌘Z)"]')?.disabled,
         errors:[...document.querySelectorAll('[role="alert"]')].map(e=>e.textContent),
         overflow:document.documentElement.scrollWidth>innerWidth
       })`);
-      if(state.rendered?.includes('功能概述')) break;
+      if(state.rendered?.includes('功能概述') && state.sync==='发布稿已同步') break;
       await new Promise(resolve=>setTimeout(resolve,200));
     } while(Date.now()<deadline);
     await new Promise(resolve=>setTimeout(resolve,500));
     await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
     await writeFile(path.join(output,'desktop.png'),(await window.webContents.capturePage()).toPNG());
-    app.exit(state.rendered?.includes('功能概述') && !state.errors.length && !state.overflow ? 0 : 1);
+    app.exit(state.rendered?.includes('功能概述') && state.sync==='发布稿已同步' && state.undoDisabled && !state.errors.length && !state.overflow ? 0 : 1);
   }
 }
 app.on('window-all-closed',()=>app.quit());

@@ -66,7 +66,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
   app.use('/api',(req,res,next)=>req.session.authenticated ? next() : next(new AppError('请先输入网站访问口令。',401)));
   app.get('/api/health',(_,res)=>res.json({ok:true,engine:'Mark',compatibility:'Confluence 7.6',formats:['md','html','docx','txt']}));
   const upload = multer({ storage:multer.memoryStorage(), limits: { fileSize:10*1024*1024, files:25, fields:0, parts:25 } });
-  app.post('/api/convert',rateLimit({windowMs:60*1000,limit:15,legacyHeaders:false}), (req,res,next) => {
+  app.post('/api/convert',rateLimit({windowMs:60*1000,limit:desktopToken?90:30,legacyHeaders:false}), (req,res,next) => {
     const length = Number(req.get('content-length'));
     if (!Number.isSafeInteger(length) || length <= 0) return next(new AppError('上传必须包含有效的文件大小。',411));
     if (length > 21*1024*1024) return next(new AppError('上传总大小不能超过 20 MB。',413));
@@ -77,11 +77,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
   }, upload.fields([{name:'document',maxCount:1},{name:'images',maxCount:24}]),async(req,res,next)=>{
     try {
       if (!req.files?.document?.[0]) throw new AppError('请先选择一个文档。');
-      if (req.session.documents.size >= 1) {
-        const oldest = req.session.documents.keys().next().value;
-        req.session.documents.delete(oldest);
-        req.session.plans.clear();
-      }
+      req.session.plans.clear();
       const files = [req.files.document[0],...(req.files.images || [])];
       if (files.reduce((n,f)=>n+f.size,0)>20*1024*1024) throw new AppError('文档和图片的总大小不能超过 20 MB。');
       const document = await isolatedConversion(files[0],req.files.images || []);
@@ -90,6 +86,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
       if (retainedBytes+document.bytes > 128*1024*1024) throw new AppError('当前文档存储已满，请清除会话或稍后再试。',503);
       const id = random();
       document.name = files[0].originalname;
+      req.session.documents.clear();
       req.session.documents.set(id,document);
       res.json({id,name:document.name,title:document.title,preview:document.preview,source:document.source,warnings:document.warnings,blockers:document.blockers,stats:document.stats});
     } catch(err) { next(err); }

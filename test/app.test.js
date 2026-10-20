@@ -9,6 +9,7 @@ import JSZip from 'jszip';
 import { createApp } from '../server/app.js';
 import { convertDocument, cleanHtml } from '../server/convert.js';
 import { parseTarget, credentials, contentSignature } from '../server/confluence.js';
+import { toMarkdown } from '../src/markdown.js';
 
 const file = (text, name='test.md') => ({originalname:name, buffer:Buffer.from(text)});
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZWQAAAAASUVORK5CYII=','base64');
@@ -20,8 +21,36 @@ test('real Mark preserves Chinese, emphasis, tables, lists and literal code', as
   assert.equal($('strong').text(),'重点');
   assert.equal($('em').text(),'强调');
   assert.match(doc.storage,/<ol>/);
-  assert.match(doc.storage,/<pre><code>\{\n  &quot;volume&quot;: 50\n\}/);
+  assert.match(doc.storage,/<pre><code class="language-json">\{\n  &quot;volume&quot;: 50\n\}/);
   assert.doesNotMatch(doc.storage,/structured-macro|language=/);
+});
+
+test('visual editor Markdown retains extended marks, tasks, alignment and merged cells',async()=>{
+  const source=toMarkdown('<h2>编辑测试</h2><p><u>下划线</u> <mark>高亮</mark> H<sub>2</sub> x<sup>2</sup> <s>删除</s></p><p style="text-align: center">居中</p><ul data-type="taskList"><li data-type="taskItem" data-checked="true"><label><input type="checkbox"></label><div><p>完成</p></div></li><li data-type="taskItem" data-checked="false"><div><p>待办</p></div></li></ul><table><tr><th colspan="2">合并</th></tr><tr><td>A</td><td>B</td></tr></table>');
+  assert.match(source,/- \[x\] 完成/);
+  assert.match(source,/- \[ \] 待办/);
+  const doc=await convertDocument(file(source));
+  const $=load(doc.preview);
+  assert.equal($('u').text(),'下划线');
+  assert.equal($('mark').text(),'高亮');
+  assert.equal($('sub').text(),'2');
+  assert.equal($('sup').text(),'2');
+  assert.match(doc.storage,/text-align:center/);
+  assert.match(doc.storage,/colspan="2"/);
+  assert.match(doc.storage,/<ac:task-status>complete/);
+  assert.match(doc.storage,/<ac:task-status>incomplete/);
+  assert.equal($('ul[data-type="taskList"] li[data-type="taskItem"]').length,2);
+});
+
+test('editor roundtrip preserves regular tables, code language, CJK emphasis and embedded images',async()=>{
+  const html='<p><strong>网络不可用：</strong>保留本地能力</p><table><thead><tr><th>功能</th><th>级别</th></tr></thead><tbody><tr><td>语音</td><td>P0</td></tr></tbody></table><pre><code class="language-json">{ "volume": 50 }</code></pre><img src="data:image/png;base64,'+png.toString('base64')+'" alt="test">';
+  const source=toMarkdown(html);
+  const doc=await convertDocument(file(source));
+  assert.equal(doc.stats.tables,1);assert.equal(doc.assets.length,1);
+  assert.equal(load(doc.preview)('strong').text(),'网络不可用：');
+  assert.match(doc.preview,/language-json/);
+  const unsafe=cleanHtml('<p style="text-align:center;position:fixed;background:url(https://evil.test)">test</p><code class="language-js evil">x</code>');
+  assert.doesNotMatch(unsafe,/position|background|evil/);
 });
 
 test('HTML retains merged cells but strips executable content and Mark metadata',async()=>{
@@ -125,6 +154,16 @@ test('mocked complete publish, protected backup, readback and no replay',async t
   assert.match(backup,/Original body/);
   assert.doesNotMatch(backup,/transient-password-only|Authorization/);
   await h.post('/publish',{...auth,token,confirmTitle:'Test page',acknowledge:true}).expect(409);
+});
+
+test('conversion failures retain current draft, but every conversion invalidates the old publish plan',async t=>{
+  const h=await harness(t);
+  const documentId=await upload(h);
+  const checked=await h.post('/check',{...auth,url,documentId}).expect(200);
+  await h.agent.post('/api/convert').set('X-CSRF-Token',h.boot.csrf).attach('document',Buffer.from('bad'),'bad.pdf').expect(400);
+  await h.agent.get('/api/documents/'+documentId+'/storage').expect(200);
+  await h.post('/publish',{...auth,token:checked.body.token,confirmTitle:'Test page',acknowledge:true}).expect(409);
+  assert.equal(h.calls.filter(c=>c.method==='PUT').length,0);
 });
 
 test('concurrent edits and inline comments prevent overwrite',async t=>{

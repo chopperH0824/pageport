@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import MarkdownIt from 'markdown-it';
+import taskLists from 'markdown-it-task-lists';
 import mammoth from 'mammoth';
 import sanitizeHtml from 'sanitize-html';
 import { load } from 'cheerio';
@@ -12,12 +13,12 @@ import { fileTypeFromBuffer } from 'file-type';
 import yauzl from 'yauzl';
 
 const exec = promisify(execFile);
-const md = new MarkdownIt({ html: true, linkify: true, breaks: false });
+const md = new MarkdownIt({ html: true, linkify: true, breaks: false }).use(taskLists);
 const imageTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 const allowedTags = [
   'p','br','h1','h2','h3','h4','h5','h6','strong','b','em','i','u','s','del',
   'sub','sup','ul','ol','li','blockquote','pre','code','hr','table','thead',
-  'tbody','tfoot','tr','th','td','caption','a','img','span','div',
+  'tbody','tfoot','tr','th','td','caption','a','img','span','div','mark',
 ];
 export class AppError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -30,9 +31,13 @@ export function cleanHtml(html) {
     allowedTags,
     allowedAttributes: {
       '*': ['id'], a: ['href','title'], img: ['src','alt','width','height'],
+      p:['style'], h1:['style'],h2:['style'],h3:['style'],h4:['style'],h5:['style'],h6:['style'],
+      ul:['data-type'],li:['data-type','data-checked'],code:['class'],
       td: ['colspan','rowspan'], th: ['colspan','rowspan','scope'],
       ol: ['start'], span: ['data-image-ref'],
     },
+    allowedClasses:{code:[/^language-[a-zA-Z0-9_-]+$/]},
+    allowedStyles:{'*':{'text-align':[/^(left|center|right|justify)$/]}},
     allowedSchemes: ['https','http','mailto','data'],
     allowedSchemesByTag: { img: ['data'] },
     allowProtocolRelative: false,
@@ -122,6 +127,7 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
       const heading = safeSource.match(/^#\s+(.+)$/m);
       if (heading) title = heading[1].trim();
       html = md.render(safeSource);
+      if (/```(?:mermaid|math|latex)\b|\$\$/.test(safeSource)) warnings.push('公式与 Mermaid 图暂不渲染，保留为源码或代码块，请核对后发布。');
     } else if (['.html','.htm'].includes(ext)) {
       html = source;
       warnings.push('HTML 保留支持的表格与内容结构；脚本、样式表、表单、嵌入页面及不受支持的标签会被清理。');
@@ -131,6 +137,13 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
   }
   // Resolve images before sanitization strips unsafe or remote image schemes.
   const raw = load(html);
+  raw('li').each((_,node)=>{
+    const item=raw(node), checkbox=item.children('input[type="checkbox"]').first();
+    if(checkbox.length) {
+      item.attr('data-type','taskItem').attr('data-checked',checkbox.is('[checked]')?'true':'false');
+      item.parent('ul').attr('data-type','taskList');
+    }
+  });
   raw('script,style,iframe,object,embed,form,input,button').remove();
   for (const node of raw('img').toArray()) {
     const element = raw(node), src = element.attr('src') || '', alt = element.attr('alt') || '图片';
@@ -169,6 +182,17 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
   $('script,style').remove();
   const storageTree = load($.xml(), { xmlMode: true });
   const previewTree = load($.xml(), { xmlMode: true });
+  let taskId=0;
+  // Deepest lists first so nested tasks survive the parent's conversion.
+  storageTree('ul[data-type="taskList"]').toArray().reverse().forEach(node=>{
+    const list=storageTree(node);
+    list.children('li').each((_,child)=>{
+      const item=storageTree(child), status=item.attr('data-checked')==='true'?'complete':'incomplete';
+      item.replaceWith(`<ac:task><ac:task-id>${++taskId}</ac:task-id><ac:task-status>${status}</ac:task-status><ac:task-body>${item.html()}</ac:task-body></ac:task>`);
+    });
+    list.replaceWith(`<ac:task-list>${list.html()}</ac:task-list>`);
+  });
+  storageTree('mark').each((_,node)=>{const item=storageTree(node);item.replaceWith(`<span style="background-color: rgb(255, 250, 179);">${item.html()}</span>`);});
   for (const asset of assets) {
     storageTree(`span[data-image-ref="${asset.id}"]`).each((_, node) => {
       storageTree(node).replaceWith(`<ac:image><ri:attachment ri:filename="${asset.name}" /></ac:image>`);
