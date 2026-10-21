@@ -53,6 +53,56 @@ test('editor roundtrip preserves regular tables, code language, CJK emphasis and
   assert.doesNotMatch(unsafe,/position|background|evil/);
 });
 
+test('text colour, colour highlight and paragraph indent survive Markdown and publish as native styles',async()=>{
+  const html='<p style="margin-left: 60px; text-align: center">缩进 <span style="color: #c0392b">红色 2*3*4</span> <mark data-color="#c9f2d6" style="background-color: #c9f2d6; color: inherit">绿底</mark> <mark>默认</mark></p><h2 style="margin-left: 30px">标题缩进</h2>';
+  const source=toMarkdown(html);
+  assert.match(source,/margin-left: 60px/);
+  const inline=toMarkdown('<p>前 <span style="color: #1f6fb2">2*3*4</span> 后</p>');
+  assert.match(inline,/<span style="color: #1f6fb2">2\\\*3\\\*4<\/span>/);
+  const doc=await convertDocument(file(source+'\n'+inline));
+  const $=load(doc.preview);
+  assert.equal($('span[style="color:#c0392b"]').text(),'红色 2*3*4');
+  assert.equal($('mark[data-color="#c9f2d6"]').text(),'绿底');
+  assert.equal($('span[style="color:#1f6fb2"]').text(),'2*3*4');
+  assert.match(doc.storage,/<p style="margin-left:60px;text-align:center">/);
+  assert.match(doc.storage,/<h2 style="margin-left:30px">/);
+  const xml=load(doc.storage,{xmlMode:true});
+  assert.equal(xml('span[style="background-color: #c9f2d6;"]').text(),'绿底');
+  assert.equal(xml('span[style="background-color: rgb(255, 250, 179);"]').text(),'默认');
+  assert.doesNotMatch(doc.storage,/<mark|<em>3/);
+  const unsafe=cleanHtml('<span style="color:red;position:fixed;background:url(x)">a</span><mark data-color="url(x)" style="background-color:url(javascript:x)">b</mark><p style="margin-left:9999px">c</p>');
+  assert.doesNotMatch(unsafe,/red|position|url|9999/);
+});
+
+test('panels and status labels become Confluence info/tip/note/warning and status macros',async()=>{
+  const html='<div data-pageport-panel="warning"><p>注意 <strong>风险</strong></p><ul><li><p>条目</p></li></ul><pre><code>a\n\n  b</code></pre></div><p>进度 <span data-pageport-status="green">已完成</span> 后续</p><div data-pageport-panel="tip"><p>提示</p></div>';
+  const source=toMarkdown(html);
+  assert.match(source,/<div data-pageport-panel="warning">\n\n注意 \*\*风险\*\*/);
+  const doc=await convertDocument(file(source));
+  const xml=load(doc.storage,{xmlMode:true});
+  const warning=xml('ac\\:structured-macro[ac\\:name="warning"]');
+  assert.equal(warning.length,1);
+  assert.equal(warning.find('ac\\:rich-text-body strong').text(),'风险');
+  assert.equal(warning.find('ac\\:rich-text-body li').length,1);
+  assert.match(warning.find('pre').text(),/^a\n\n  b\n?$/);
+  assert.equal(xml('ac\\:structured-macro[ac\\:name="tip"]').length,1);
+  const status=xml('ac\\:structured-macro[ac\\:name="status"]');
+  assert.equal(status.find('ac\\:parameter[ac\\:name="colour"]').text(),'Green');
+  assert.equal(status.find('ac\\:parameter[ac\\:name="title"]').text(),'已完成');
+  assert.doesNotMatch(doc.storage,/data-pageport/);
+  const $=load(doc.preview);
+  assert.equal($('[data-pageport-panel="warning"] strong').text(),'风险');
+  assert.equal($('[data-pageport-status="green"]').text(),'已完成');
+  const again=await convertDocument(file(toMarkdown(doc.preview)));
+  assert.equal(again.digest,doc.digest);
+  const hostile=await convertDocument(file('<div data-pageport-panel="include"><p>x</p></div>\n\n<p><span data-pageport-status="evil"><b>超长</b>'+'很'.repeat(80)+'</span></p>'));
+  const hx=load(hostile.storage,{xmlMode:true});
+  assert.equal(hx('ac\\:structured-macro[ac\\:name="info"]').length,1);
+  assert.equal(hx('ac\\:parameter[ac\\:name="colour"]').text(),'Grey');
+  assert.equal(hx('ac\\:parameter[ac\\:name="title"]').text().length,40);
+  assert.doesNotMatch(hostile.storage,/include|evil|<b>/);
+});
+
 test('TOC marker becomes a bounded native macro and clickable preview without duplicating text',async()=>{
   const marker='<div data-pageport-toc="true" data-min-level="2" data-max-level="3"></div>';
   const source=toMarkdown(marker+'<h1>产品</h1><h2>概述</h2><h3>范围</h3><h4>细节</h4><h2>概述</h2>');

@@ -1,6 +1,6 @@
 {
   "name": "pageport",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A local-first Confluence document publisher for macOS, powered by Mark",
   "author": "PagePort contributors",
   "license": "MIT",
@@ -27,6 +27,7 @@
     "@tiptap/extension-highlight": "^3.0.0",
     "@tiptap/extension-subscript": "^3.0.0",
     "@tiptap/extension-superscript": "^3.0.0",
+    "@tiptap/extension-text-style": "^3.0.0",
     "@vitejs/plugin-react": "^4.7.0",
     "cheerio": "^1.1.2",
     "express": "^5.1.0",

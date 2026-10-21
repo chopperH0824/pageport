@@ -35,6 +35,12 @@ export class AppError extends Error {
 }
 export const hash = value => createHash('sha256').update(value).digest('hex');
 const escape = text => String(text).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const colorValue = [/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i, /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/i];
+const blockStyle = {'text-align':[/^(left|center|right|justify)$/], 'margin-left':[/^\d{1,3}(?:\.\d+)?px$/]};
+const panelTypes = new Set(['info','tip','note','warning']);
+const statusColours = {grey:'Grey',blue:'Blue',green:'Green',yellow:'Yellow',red:'Red'};
+const DEFAULT_HIGHLIGHT = 'rgb(255, 250, 179)';
+const isColor = value => colorValue.some(pattern => pattern.test(value || ''));
 
 export function cleanHtml(html) {
   return sanitizeHtml(html, {
@@ -44,11 +50,19 @@ export function cleanHtml(html) {
       p:['style'], h1:['style'],h2:['style'],h3:['style'],h4:['style'],h5:['style'],h6:['style'],
       ul:['data-type'],li:['data-type','data-checked'],code:['class'],
       td: ['colspan','rowspan'], th: ['colspan','rowspan','scope'],
-      ol: ['start'], span: ['data-image-ref'],
-      div:['data-pageport-toc','data-min-level','data-max-level'],
+      ol: ['start'], span: ['data-image-ref','data-pageport-status','style'], mark: ['data-color','style'],
+      div:['data-pageport-toc','data-min-level','data-max-level','data-pageport-panel'],
     },
     allowedClasses:{code:[/^language-[a-zA-Z0-9_-]+$/]},
-    allowedStyles:{'*':{'text-align':[/^(left|center|right|justify)$/]}},
+    allowedStyles:{
+      '*':{'text-align':blockStyle['text-align']},
+      p:blockStyle, h1:blockStyle, h2:blockStyle, h3:blockStyle, h4:blockStyle, h5:blockStyle, h6:blockStyle,
+      span:{color:colorValue}, mark:{'background-color':colorValue, color:[/^inherit$/]},
+    },
+    transformTags:{mark:(tagName,attribs)=>{
+      const {['data-color']:color,...rest}=attribs;
+      return {tagName,attribs:isColor(color)?attribs:rest};
+    }},
     allowedSchemes: ['https','http','mailto','data'],
     allowedSchemesByTag: { img: ['data'] },
     allowProtocolRelative: false,
@@ -154,6 +168,15 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
     const max=Math.min(6,Math.max(min,Number.parseInt(item.attr('data-max-level'),10) || 6));
     item.empty().attr('data-min-level',String(min)).attr('data-max-level',String(max));
   });
+  raw('div[data-pageport-panel]').each((_,node)=>{
+    const item=raw(node);
+    if(!panelTypes.has(item.attr('data-pageport-panel')))item.attr('data-pageport-panel','info');
+  });
+  raw('span[data-pageport-status]').each((_,node)=>{
+    const item=raw(node);
+    if(!statusColours[item.attr('data-pageport-status')])item.attr('data-pageport-status','grey');
+    item.text(item.text().replace(/\s+/g,' ').trim().slice(0,40) || '状态');
+  });
   raw('li').each((_,node)=>{
     const item=raw(node), checkbox=item.children('input[type="checkbox"]').first();
     if(checkbox.length) {
@@ -192,7 +215,8 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
   if (raw('table table').length) warnings.push('检测到嵌套表格。已保留结构，但 Confluence 编辑器可能重新调整宽度。');
   if (raw('[rowspan],[colspan]').length) warnings.push('检测到合并单元格。已保留跨度属性，请核对发布后的显示效果。');
   if (raw('pre').length) warnings.push('代码块使用纯文本兼容显示，保留缩进与换行，不启用旧版代码宏高亮。');
-  const content = cleanHtml(raw('body').html() || '');
+  // Mark ends a <div> HTML block at the first blank line, which would split code blocks inside panels.
+  const content = cleanHtml(raw('body').html() || '').replace(/<pre\b[\s\S]*?<\/pre>/g, block => block.replace(/\n/g, '&#10;'));
   if (!load(content).text().trim() && !assets.length && !raw('div[data-pageport-toc="true"]').length) throw new AppError('文档没有可发布的内容。');
   const compiled = await compileMark(content, scratchRoot);
   const $ = load(cleanHtml(compiled), { xmlMode: true });
@@ -229,7 +253,19 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
     });
     list.replaceWith(`<ac:task-list>${list.html()}</ac:task-list>`);
   });
-  storageTree('mark').each((_,node)=>{const item=storageTree(node);item.replaceWith(`<span style="background-color: rgb(255, 250, 179);">${item.html()}</span>`);});
+  storageTree('mark').each((_,node)=>{
+    const item=storageTree(node), color=item.attr('data-color');
+    item.replaceWith(`<span style="background-color: ${isColor(color)?color:DEFAULT_HIGHLIGHT};">${item.html()}</span>`);
+  });
+  storageTree('span[data-pageport-status]').each((_,node)=>{
+    const item=storageTree(node), colour=statusColours[item.attr('data-pageport-status')] || 'Grey';
+    item.replaceWith(`<ac:structured-macro ac:name="status" ac:schema-version="1"><ac:parameter ac:name="colour">${colour}</ac:parameter><ac:parameter ac:name="title">${escape(item.text())}</ac:parameter></ac:structured-macro>`);
+  });
+  // Deepest panels first so nested panels keep their own macro bodies.
+  storageTree('div[data-pageport-panel]').toArray().reverse().forEach(node=>{
+    const item=storageTree(node), type=panelTypes.has(item.attr('data-pageport-panel'))?item.attr('data-pageport-panel'):'info';
+    item.replaceWith(`<ac:structured-macro ac:name="${type}" ac:schema-version="1"><ac:rich-text-body>${item.html()}</ac:rich-text-body></ac:structured-macro>`);
+  });
   for (const asset of assets) {
     storageTree(`span[data-image-ref="${asset.id}"]`).each((_, node) => {
       storageTree(node).replaceWith(`<ac:image><ri:attachment ri:filename="${asset.name}" /></ac:image>`);
