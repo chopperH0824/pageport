@@ -2,9 +2,17 @@ import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 
 export function createSerializer() {
-  const service = new TurndownService({ headingStyle:'atx', codeBlockStyle:'fenced', bulletListMarker:'-', emDelimiter:'*' });
+  const contents=node=>`\n\n<div data-pageport-toc="true" data-min-level="${Number(node.getAttribute('data-min-level')) || 1}" data-max-level="${Number(node.getAttribute('data-max-level')) || 6}"></div>\n\n`;
+  const service = new TurndownService({
+    headingStyle:'atx', codeBlockStyle:'fenced', bulletListMarker:'-', emDelimiter:'*',
+    blankReplacement:(_content,node)=>node.nodeName==='DIV' && node.getAttribute('data-pageport-toc')==='true'?contents(node):node.isBlock?'\n\n':'',
+  });
   service.use(gfm);
   service.remove(['label','input']);
+  service.addRule('tableOfContents', {
+    filter:node=>node.nodeName==='DIV' && node.getAttribute('data-pageport-toc')==='true',
+    replacement:(_content,node)=>contents(node),
+  });
   service.addRule('extendedInline', {
     filter:['u','mark','sub','sup'],
     replacement:(_content,node)=>node.outerHTML,

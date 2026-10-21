@@ -14,6 +14,16 @@ import yauzl from 'yauzl';
 
 const exec = promisify(execFile);
 const md = new MarkdownIt({ html: true, linkify: true, breaks: false }).use(taskLists);
+md.block.ruler.before('paragraph','pageport_toc',(state,start,end,silent)=>{
+  const line=state.src.slice(state.bMarks[start]+state.tShift[start],state.eMarks[start]);
+  if(state.sCount[start]-state.blkIndent>=4 || !/^\[toc\]\s*$/i.test(line))return false;
+  if(!silent) {
+    const token=state.push('html_block','',0);
+    token.content='<div data-pageport-toc="true" data-min-level="1" data-max-level="6"></div>\n';
+    token.map=[start,start+1];state.line=start+1;
+  }
+  return true;
+});
 const imageTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 const allowedTags = [
   'p','br','h1','h2','h3','h4','h5','h6','strong','b','em','i','u','s','del',
@@ -35,6 +45,7 @@ export function cleanHtml(html) {
       ul:['data-type'],li:['data-type','data-checked'],code:['class'],
       td: ['colspan','rowspan'], th: ['colspan','rowspan','scope'],
       ol: ['start'], span: ['data-image-ref'],
+      div:['data-pageport-toc','data-min-level','data-max-level'],
     },
     allowedClasses:{code:[/^language-[a-zA-Z0-9_-]+$/]},
     allowedStyles:{'*':{'text-align':[/^(left|center|right|justify)$/]}},
@@ -137,6 +148,12 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
   }
   // Resolve images before sanitization strips unsafe or remote image schemes.
   const raw = load(html);
+  raw('div[data-pageport-toc="true"]').each((_,node)=>{
+    const item=raw(node);
+    const min=Math.min(6,Math.max(1,Number.parseInt(item.attr('data-min-level'),10) || 1));
+    const max=Math.min(6,Math.max(min,Number.parseInt(item.attr('data-max-level'),10) || 6));
+    item.empty().attr('data-min-level',String(min)).attr('data-max-level',String(max));
+  });
   raw('li').each((_,node)=>{
     const item=raw(node), checkbox=item.children('input[type="checkbox"]').first();
     if(checkbox.length) {
@@ -176,12 +193,32 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
   if (raw('[rowspan],[colspan]').length) warnings.push('检测到合并单元格。已保留跨度属性，请核对发布后的显示效果。');
   if (raw('pre').length) warnings.push('代码块使用纯文本兼容显示，保留缩进与换行，不启用旧版代码宏高亮。');
   const content = cleanHtml(raw('body').html() || '');
-  if (!load(content).text().trim() && !assets.length) throw new AppError('文档没有可发布的内容。');
+  if (!load(content).text().trim() && !assets.length && !raw('div[data-pageport-toc="true"]').length) throw new AppError('文档没有可发布的内容。');
   const compiled = await compileMark(content, scratchRoot);
   const $ = load(cleanHtml(compiled), { xmlMode: true });
   $('script,style').remove();
   const storageTree = load($.xml(), { xmlMode: true });
   const previewTree = load($.xml(), { xmlMode: true });
+  const usedIds=new Set(previewTree('[id]').toArray().map(node=>previewTree(node).attr('id')));
+  const idCounts=new Map();
+  previewTree('[id]').each((_,node)=>{const id=previewTree(node).attr('id');idCounts.set(id,(idCounts.get(id) || 0)+1);});
+  let headingId=0;
+  const headings=(previewTree('div[data-pageport-toc="true"]').length?previewTree('h1,h2,h3,h4,h5,h6').toArray():[]).map(node=>{
+    const heading=previewTree(node);
+    let id=heading.attr('id');
+    if(!id || idCounts.get(id)!==1)do {id=`pageport-heading-${++headingId}`;} while(usedIds.has(id));
+    usedIds.add(id);heading.attr('id',id);
+    return {id,level:Number(node.name.slice(1)),text:heading.text()};
+  });
+  storageTree('div[data-pageport-toc="true"]').each((_,node)=>{
+    const item=storageTree(node);
+    item.replaceWith(`<ac:structured-macro ac:name="toc" ac:schema-version="1"><ac:parameter ac:name="minLevel">${item.attr('data-min-level')}</ac:parameter><ac:parameter ac:name="maxLevel">${item.attr('data-max-level')}</ac:parameter><ac:parameter ac:name="outline">false</ac:parameter></ac:structured-macro>`);
+  });
+  previewTree('div[data-pageport-toc="true"]').each((_,node)=>{
+    const item=previewTree(node), min=Number(item.attr('data-min-level')), max=Number(item.attr('data-max-level'));
+    const entries=headings.filter(h=>h.level>=min && h.level<=max);
+    item.html(`<strong>目录</strong><ul>${entries.map(h=>`<li style="margin-left:${(h.level-min)*16}px"><a href="#${escape(encodeURIComponent(h.id))}">${escape(h.text)}</a></li>`).join('')}</ul>`);
+  });
   let taskId=0;
   // Deepest lists first so nested tasks survive the parent's conversion.
   storageTree('ul[data-type="taskList"]').toArray().reverse().forEach(node=>{

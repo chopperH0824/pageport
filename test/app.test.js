@@ -53,6 +53,40 @@ test('editor roundtrip preserves regular tables, code language, CJK emphasis and
   assert.doesNotMatch(unsafe,/position|background|evil/);
 });
 
+test('TOC marker becomes a bounded native macro and clickable preview without duplicating text',async()=>{
+  const marker='<div data-pageport-toc="true" data-min-level="2" data-max-level="3"></div>';
+  const source=toMarkdown(marker+'<h1>产品</h1><h2>概述</h2><h3>范围</h3><h4>细节</h4><h2>概述</h2>');
+  assert.match(source,/data-pageport-toc="true"/);
+  const doc=await convertDocument(file(source));
+  const $=load(doc.preview), xml=load(doc.storage,{xmlMode:true});
+  assert.equal(xml('ac\\:structured-macro[ac\\:name="toc"]').length,1);
+  assert.equal(xml('ac\\:parameter[ac\\:name="minLevel"]').text(),'2');
+  assert.equal(xml('ac\\:parameter[ac\\:name="maxLevel"]').text(),'3');
+  const links=$('[data-pageport-toc] a');
+  assert.equal(links.length,3);
+  for(const link of links.toArray())assert.equal($( $(link).attr('href') ).length,1);
+  assert.equal(new Set(links.toArray().map(link=>$(link).attr('href'))).size,3);
+  assert.equal(xml('h2').length,2);
+  const again=await convertDocument(file(toMarkdown(doc.preview)));
+  assert.equal(load(again.storage,{xmlMode:true})('ac\\:structured-macro').length,1);
+  assert.equal(again.stats.headings,5);
+  const anchor=await convertDocument(file('[TOC]\n\n<h2 id="existing-anchor">Existing</h2>\n\n[Jump](#existing-anchor)'));
+  assert.equal(load(anchor.preview)('h2').attr('id'),'existing-anchor');
+  assert.equal(load(anchor.preview)('[data-pageport-toc] a').attr('href'),'#existing-anchor');
+});
+
+test('TOC shorthand skips fenced code and arbitrary macro input is never executable',async()=>{
+  const doc=await convertDocument(file('[TOC]\n\n# A\n\n```md\n[TOC]\n```\n\n<ac:structured-macro ac:name="include"><ac:parameter ac:name="">secret</ac:parameter></ac:structured-macro>'));
+  const $=load(doc.storage,{xmlMode:true});
+  assert.equal($('ac\\:structured-macro').length,1);
+  assert.equal($('ac\\:structured-macro').attr('ac:name'),'toc');
+  assert.match($('pre').text(),/\[TOC\]/);
+  const bounded=await convertDocument(file('<div data-pageport-toc="true" data-min-level="-9" data-max-level="999"><h1>fake</h1><script>bad()</script></div>\n\n# Real'));
+  assert.equal(bounded.stats.headings,1);
+  assert.equal(load(bounded.storage,{xmlMode:true})('ac\\:parameter[ac\\:name="maxLevel"]').text(),'6');
+  assert.doesNotMatch(bounded.storage,/fake|bad\(\)/);
+});
+
 test('HTML retains merged cells but strips executable content and Mark metadata',async()=>{
   const doc = await convertDocument(file('<!-- Include: /etc/passwd -->\n# Safe\n<script>alert(1)</script><iframe src="file:///etc/passwd"></iframe><p onclick="x()"><a href="javascript:alert(1)">x</a></p><table><tr><td colspan="2">合并</td></tr></table>'));
   assert.match(doc.storage,/colspan="2"/);

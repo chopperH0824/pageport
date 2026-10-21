@@ -12,11 +12,12 @@ import Superscript from '@tiptap/extension-superscript';
 import {
   Undo2, Redo2, Bold, Italic, Underline, Strikethrough, Highlighter, Code,
   List, ListOrdered, ListTodo, Quote, SquareCode, Minus, Link2, Unlink,
-  ImagePlus, Table2, Rows3, Columns3, Trash2, Combine, Split,
+  ImagePlus, Table2, Rows3, Columns3, Trash2, Combine, Split, ListTree,
   AlignLeft, AlignCenter, AlignRight, Subscript as SubIcon, Superscript as SupIcon,
   IndentIncrease, IndentDecrease, RemoveFormatting, X, Check, ChevronDown,
 } from 'lucide-react';
 import { toMarkdown } from './markdown.js';
+import { TableOfContents } from './TableOfContents.jsx';
 import './rich-editor.css';
 
 const LocalImage=Image.extend({
@@ -59,6 +60,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
       TaskList,TaskItem.configure({nested:true}),
       TextAlign.configure({types:['heading','paragraph']}),
       Highlight.configure({multicolor:false}),Subscript,Superscript,
+      TableOfContents,
     ],
     content,
     immediatelyRender:false,
@@ -145,6 +147,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
         <Tool label="链接" icon={Link2} active={state.link || panel==='link'} disabled={disabled} onClick={()=>{setLink(editor.getAttributes('link').href || '');setPanel(panel==='link'?'':'link');}}/>
         <Tool label="插入图片" icon={ImagePlus} disabled={disabled} onClick={()=>imageInput.current.click()}/>
         <Tool label="插入表格" icon={Table2} active={panel==='table'} disabled={disabled} onClick={()=>setPanel(panel==='table'?'':'table')}/>
+        <Tool label="插入目录" icon={ListTree} disabled={disabled} onClick={()=>editor.chain().focus().insertContent({type:'tableOfContents'}).run()}/>
         <Tool label="更多格式" icon={ChevronDown} active={panel==='more'} disabled={disabled} onClick={()=>setPanel(panel==='more'?'':'more')}/>
       </div>
     </div>

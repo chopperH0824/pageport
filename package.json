@@ -1,6 +1,6 @@
 {
   "name": "pageport",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A local-first Confluence document publisher for macOS, powered by Mark",
   "author": "PagePort contributors",
   "license": "MIT",
@@ -16,6 +16,7 @@
     "package:mac": "npm run build && electron-builder --mac"
   },
   "dependencies": {
+    "@tiptap/core": "^3.0.0",
     "@tiptap/react": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",
     "@tiptap/extension-image": "^3.0.0",
