@@ -1,4 +1,16 @@
 (function () {
+  function updateSectionNavigation() {
+    const target = window.location.hash || "#download";
+    document.querySelectorAll(".download-subnav a").forEach((link) => {
+      const active = link.getAttribute("href") === target;
+      link.classList.toggle("is-active", active);
+      if (active) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    });
+  }
+  window.addEventListener("hashchange", updateSectionNavigation);
+  updateSectionNavigation();
+
   function readEmbeddedMeta() {
     const node = document.getElementById("release-meta");
     if (!node) return null;

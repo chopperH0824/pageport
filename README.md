@@ -5,8 +5,8 @@
 Mac 和 Windows 上的本地 Confluence 文档发布工具。
 
 官网与安装包：[pageport.chopperh.me](https://pageport.chopperh.me)。
-选择 macOS 或 Windows 后，使用同一个下载按钮获取对应安装包；
-页面同时提供版本、文件大小与 SHA-256，GitHub Releases 可作为备选下载源。
+
+下载页采用桌面优先的蓝白布局，选择 macOS / Windows 后共用同一个下载按钮，版本、文件大小与 SHA-256 随系统同步切换；提供四步发布演示、格式兼容说明与安装指南，GitHub Releases 可作为备选下载源。
 
 PagePort 是基于 [Mark](https://github.com/kovetskiy/mark) 的本地文档发布台：
 导入 Markdown、HTML、Word 或纯文本，核对近似预览，再检查目标页面、备份和发布。

@@ -31,6 +31,24 @@ test("platform selector shares exactly one installer link", () => {
   assert.equal($("#download-installer").attr("href"), meta.assets[0].versionedDownloadUrl);
   assert.equal($("#download-file").text(), meta.assets[0].filename);
   assert.equal($("#copy-sha").length, 1);
+  $("#download [data-download-os]").each((_, el) => {
+    assert.equal($(el).attr("type"), "button");
+    assert.equal($(el).find("img[alt='']").length, 1);
+    assert.ok($(el).find("strong").text().includes("客户端"));
+    assert.ok($(el).find("span").text().length > 0);
+  });
+});
+
+test("download navigation preserves PagePort branding and local-only visual assets", () => {
+  assert.equal($("h1").text(), "下载 PagePort 客户端");
+  assert.equal($(".brand-link img").attr("src"), "./favicon.svg");
+  assert.equal($(".download-subnav a").length, 4);
+  assert.equal($(".download-subnav [aria-current='location']").attr("href"), "#download");
+  $("img").each((_, el) => {
+    assert.ok($(el).attr("src").startsWith("./"), "visual assets must be served locally");
+    assert.ok($(el).attr("alt") !== undefined, "images need explicit alt text");
+  });
+  assert.ok(!html.includes("feishu.cn"), "do not depend on reference-site resources");
 });
 
 test("download page assets and section links resolve locally", () => {
