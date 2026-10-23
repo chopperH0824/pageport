@@ -268,7 +268,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
           <option value="0">正文</option>{[1,2,3,4,5,6].map(n=><option key={n} value={n}>标题 {n}</option>)}
         </select>
         <select aria-label="字号" value={state.fontSize} disabled={off} onChange={e=>e.target.value?run(c=>c.setFontSize(e.target.value)):run(c=>c.unsetFontSize())}>
-          <option value="">默认字号</option>{[10,12,14,16,18,20,24,28,32,40,48].map(size=><option key={size} value={`${size}px`}>{size} px</option>)}
+          <option value="">默认</option>{[10,12,14,16,18,20,24,28,32,40,48].map(size=><option key={size} value={`${size}px`}>{size} px</option>)}
         </select>
       </div>
       <div className="format-group">
