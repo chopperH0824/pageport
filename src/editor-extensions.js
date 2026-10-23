@@ -1,4 +1,5 @@
 import { Extension, Node, mergeAttributes } from '@tiptap/core';
+import { Table, TableCell, TableHeader, TableView } from '@tiptap/extension-table';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { liftTarget } from '@tiptap/pm/transform';
@@ -187,3 +188,50 @@ const WORD=/[A-Za-z0-9]+(?:['’.-][A-Za-z0-9]+)*/g;
 export function countWords(text) {
   return {words:(text.match(CJK) || []).length+(text.replace(CJK,' ').match(WORD) || []).length,characters:text.replace(/\s/g,'').length};
 }
+
+class WidthTableView extends TableView {
+  constructor(node, cellMinWidth, view, HTMLAttributes) {
+    super(node, cellMinWidth, view, HTMLAttributes);
+    this.keepWidth(node);
+  }
+  update(node) {
+    const ok = super.update(node);
+    if (ok) this.keepWidth(node);
+    return ok;
+  }
+  keepWidth(node) {
+    const width = /width\s*:\s*([^;]+)/i.exec(node.attrs.style || '')?.[1]?.trim();
+    if (width) this.table.style.width = width;
+  }
+}
+const percentWidth = element => {
+  const width = (element.style.width || '').trim();
+  return /^\d+(?:\.\d+)?%$/.test(width) ? `width: ${width}` : null;
+};
+const cellStyle = element => {
+  const parts = [];
+  const align = (element.style.textAlign || '').trim().toLowerCase();
+  if (['left','center','right','justify'].includes(align)) parts.push(`text-align: ${align}`);
+  const background = (element.style.backgroundColor || '').trim();
+  if (background && background !== 'transparent' && background !== 'rgba(0, 0, 0, 0)') parts.push(`background-color: ${background}`);
+  return parts.join('; ') || null;
+};
+const styledCell = ExtensionNode => ExtensionNode.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      align:{default:null,parseHTML:element=>(element.style.textAlign || '').trim().toLowerCase() || null,renderHTML:()=>({})},
+      cellStyle:{default:null,parseHTML:cellStyle,renderHTML:attributes=>attributes.cellStyle?{style:attributes.cellStyle}:{}},
+    };
+  },
+});
+export const ConfluenceTable = Table.extend({
+  addAttributes() {
+    return {...this.parent?.(), style:{default:null,parseHTML:percentWidth,renderHTML:attributes=>attributes.style?{style:attributes.style}:{}}};
+  },
+  addOptions() {
+    return {...this.parent?.(), resizable:false, View:WidthTableView};
+  },
+});
+export const ConfluenceTableCell = styledCell(TableCell);
+export const ConfluenceTableHeader = styledCell(TableHeader);

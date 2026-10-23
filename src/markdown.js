@@ -36,7 +36,7 @@ export function createSerializer() {
   });
   service.addRule('strike', {filter:['s','del'],replacement:content=>`~~${content}~~`});
   service.addRule('complexTable', {
-    filter:node=>node.nodeName==='TABLE' && !!node.querySelector('[colspan]:not([colspan="1"]),[rowspan]:not([rowspan="1"]),table'),
+    filter:node=>node.nodeName==='TABLE' && !!(node.getAttribute('style') || node.querySelector('[style],[colspan]:not([colspan="1"]),[rowspan]:not([rowspan="1"]),table')),
     replacement:(_content,node)=>`\n\n${node.outerHTML}\n\n`,
   });
   service.addRule('alignedBlock', {

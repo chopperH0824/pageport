@@ -8,5 +8,8 @@ data/
 .DS_Store
 release/
 resources/mark
+resources/mark.exe
+resources/icon.ico
 resources/mark-LICENSE
 artifacts/
+local-private/

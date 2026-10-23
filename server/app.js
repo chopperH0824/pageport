@@ -64,7 +64,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
     next(new AppError('访问口令不正确。',401));
   });
   app.use('/api',(req,res,next)=>req.session.authenticated ? next() : next(new AppError('请先输入网站访问口令。',401)));
-  app.get('/api/health',(_,res)=>res.json({ok:true,engine:'Mark',compatibility:'Confluence 7.6',formats:['md','html','docx','txt']}));
+  app.get('/api/health',(_,res)=>res.json({ok:true,engine:'Mark',compatibility:'Confluence 7.6',formats:['md','html','docx','doc','wps','txt']}));
   const upload = multer({ storage:multer.memoryStorage(), limits: { fileSize:10*1024*1024, files:25, fields:0, parts:25 } });
   app.post('/api/convert',rateLimit({windowMs:60*1000,limit:desktopToken?90:30,legacyHeaders:false}), (req,res,next) => {
     const length = Number(req.get('content-length'));

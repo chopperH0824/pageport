@@ -1,7 +1,7 @@
 {
   "name": "pageport",
-  "version": "0.3.1",
-  "description": "A local-first Confluence document publisher for macOS, powered by Mark",
+  "version": "0.4.0",
+  "description": "A local-first Confluence document publisher for macOS and Windows, powered by Mark",
   "author": "PagePort contributors",
   "license": "MIT",
   "main": "desktop/main.cjs",
@@ -12,28 +12,33 @@
     "start": "NODE_ENV=production node server/index.js",
     "test": "node --test test/*.test.js",
     "prepare:mac": "node scripts/prepare-mac.mjs",
+    "prepare:windows": "node scripts/prepare-windows.mjs",
+    "smoke:desktop": "node scripts/smoke-desktop.mjs",
+    "test:windows-installer": "node scripts/test-windows-installer.mjs",
     "desktop": "npm run build && electron .",
-    "package:mac": "npm run build && electron-builder --mac"
+    "package:mac": "npm run build && electron-builder --mac --publish never",
+    "package:windows": "npm run build && electron-builder --win --x64 --publish never"
   },
   "dependencies": {
     "@tiptap/core": "^3.0.0",
-    "@tiptap/react": "^3.0.0",
-    "@tiptap/starter-kit": "^3.0.0",
-    "@tiptap/extension-image": "^3.0.0",
-    "@tiptap/extension-table": "^3.0.0",
-    "@tiptap/extension-task-list": "^3.0.0",
-    "@tiptap/extension-task-item": "^3.0.0",
-    "@tiptap/extension-text-align": "^3.0.0",
     "@tiptap/extension-highlight": "^3.0.0",
+    "@tiptap/extension-image": "^3.0.0",
     "@tiptap/extension-subscript": "^3.0.0",
     "@tiptap/extension-superscript": "^3.0.0",
+    "@tiptap/extension-table": "^3.0.0",
+    "@tiptap/extension-task-item": "^3.0.0",
+    "@tiptap/extension-task-list": "^3.0.0",
+    "@tiptap/extension-text-align": "^3.0.0",
     "@tiptap/extension-text-style": "^3.0.0",
+    "@tiptap/react": "^3.0.0",
+    "@tiptap/starter-kit": "^3.0.0",
     "@vitejs/plugin-react": "^4.7.0",
     "cheerio": "^1.1.2",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
     "file-type": "^22.2.0",
     "helmet": "^8.1.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
     "mammoth": "^1.11.0",
     "markdown-it": "^14.1.0",
@@ -42,6 +47,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "sanitize-html": "^2.17.0",
+    "semver": "^7.8.5",
     "turndown": "^7.2.0",
     "turndown-plugin-gfm": "^1.0.2",
     "vite": "^6.4.0",
@@ -50,7 +56,7 @@
   "devDependencies": {
     "electron": "^44.9.1",
     "electron-builder": "^26.15.3",
-    "jszip": "^3.10.1",
+    "png-to-ico": "^3.0.2",
     "supertest": "^7.1.4"
   },
   "overrides": {
@@ -59,18 +65,47 @@
   "build": {
     "appId": "me.pageport.desktop",
     "productName": "PagePort",
-    "directories": { "output": "release" },
-    "files": ["desktop/**", "server/**", "dist/**", "package.json", "LICENSE", "THIRD_PARTY_NOTICES.md"],
-    "extraResources": [
-      { "from": "resources/mark", "to": "bin/mark" },
-      { "from": "resources/mark-LICENSE", "to": "licenses/mark-LICENSE" }
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**",
+      "server/**",
+      "dist/**",
+      "package.json",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md"
     ],
     "mac": {
+      "extraResources": [
+        { "from": "resources/mark", "to": "bin/mark" },
+        { "from": "resources/mark-LICENSE", "to": "licenses/mark-LICENSE" }
+      ],
       "category": "public.app-category.productivity",
       "icon": "resources/icon.icns",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "identity": null
     },
-    "dmg": { "title": "PagePort" }
+    "win": {
+      "icon": "resources/icon.ico",
+      "artifactName": "PagePort-${version}-${arch}-setup.${ext}",
+      "target": [ "nsis" ],
+      "extraResources": [
+        { "from": "resources/mark.exe", "to": "bin/mark.exe" },
+        { "from": "resources/mark-LICENSE", "to": "licenses/mark-LICENSE" }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "dmg": {
+      "title": "PagePort"
+    }
   }
 }

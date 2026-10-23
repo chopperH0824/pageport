@@ -2,13 +2,13 @@
 
 <img src="public/favicon.svg" width="56" alt="PagePort logo">
 
-Mac 上的本地 Confluence 文档发布工具。
+Mac 和 Windows 上的本地 Confluence 文档发布工具。
 
-PagePort 是基于 [Mark](https://github.com/kovetskiy/mark) 的 macOS 文档发布台：
+PagePort 是基于 [Mark](https://github.com/kovetskiy/mark) 的本地文档发布台：
 导入 Markdown、HTML、Word 或纯文本，核对近似预览，再检查目标页面、备份和发布。
 它面向支持 REST API 与账号密码认证的 Confluence Server / Data Center。
 不需要把密码写进 Markdown，也不需要让密码出现在命令行参数中。
-转换引擎内置，文档和密码不经过第三方发布服务器。Mac 能访问公司 Confluence 即可使用。
+转换引擎内置，文档和密码不经过第三方发布服务器。电脑能访问公司 Confluence 即可使用。
 
 ![PagePort 本地发布工作区](docs/screenshot.png)
 
@@ -22,10 +22,41 @@ PagePort 是基于 [Mark](https://github.com/kovetskiy/mark) 的 macOS 文档发
 打开应用即可工作，无须终端、API Key 或网站访问口令。
 “PagePort → 打开备份文件夹”可查看本机原页面备份。
 
+## Windows 安装
+
+从 [GitHub Releases](https://github.com/chopperH0824/pageport/releases) 下载
+`PagePort-版本-x64-setup.exe`，在 Windows 10/11 x64 上运行安装向导。
+默认按当前用户安装，可以选择安装目录。首版不提供 Windows ARM64 原生包。
+安装包尚未使用代码签名证书，Windows 可能显示未知发布者或 SmartScreen 提示；
+请核对来源和发布页摘要，不要关闭系统安全保护。
+
+Windows 支持 Markdown、HTML、DOCX、TXT、Confluence 网页导出的 Word，
+以及实际为 DOCX 结构的 `.doc/.wps`。真正的旧二进制 `.doc/.wps` 需先在 Word/WPS
+另存为 `.docx`；Mac 继续通过系统 `textutil` 转换。Windows 不要求安装 Go、Node 或 Word。
+快捷键使用 `Ctrl`，Mac 使用 `Cmd`。
+
+## 检查更新
+
+安装 0.4.0 后，启动约 10 秒及运行期间每 6 小时检查一次公开 GitHub 最新正式 Release。
+也可使用应用菜单“PagePort → 检查更新…”或右上角下载图标。
+后台检查只显示新版本标记，不弹窗打断编辑；网络失败不影响工作。
+更新窗口可关闭自动检查，手动检查仍然可用。
+
+窗口显示版本、日期和更新说明，按当前系统和架构选择安装包。
+下载完成后核对 GitHub 提供的文件大小及 SHA-256，再允许在 Finder/资源管理器中查看。
+没有匹配安装包或可信摘要时只提供官方发布页入口，不执行未经校验的文件。
+安装前请保存文档并正常退出应用，然后运行 Windows 安装包或用 DMG 替换 Mac 应用。
+不会静默安装、强制重启或清除页面备份。
+
+只有发布新的正式 Release（更高版本 tag，附上对应安装包）才会提示更新；
+仅推送源码、草稿和预发布不会。0.3.x 没有检测代码，旧用户需要先手动安装一次 0.4.0。
+检查仅请求公开版本信息，不发送文档、Confluence 地址、账号、密码或用户标识；
+连接 GitHub 仍会暴露网络连接常规信息（如 IP）。应用关闭时无法提醒。
+
 ## 工作流
 
 1. 打开 PagePort，进入本地工作区。
-2. 导入 `.md` / `.markdown` / `.html` / `.htm` / `.docx` / `.txt`。
+2. 导入 `.md` / `.markdown` / `.html` / `.htm` / `.docx` / `.doc` / `.wps` / `.txt`（旧格式限制见上）。
 3. Markdown 引用本地图片时，同时添加对应 PNG、JPEG、GIF 或 WebP 文件。
 4. 在“编辑预览”中直接修改，或切换 Markdown 源文件。修改自动转换为发布稿；等待“发布稿已同步”，核对“发布预览”与检查项。
 5. 输入已有页面的完整 HTTPS 链接、Confluence 账号和密码。
@@ -45,9 +76,11 @@ PagePort 是基于 [Mark](https://github.com/kovetskiy/mark) 的 macOS 文档发
 | 代码块 | 纯文本 `<pre><code>`，避免旧版代码宏语言参数不兼容 |
 | 本地 / Word 内嵌图片 | 校验实际类型，上传为内容哈希命名的附件 |
 | 外部图片 | 不自动抓取，缺图阻止发布；可手动提供同名图片 |
+| Confluence 网页导出的 Word | 还原支持的表格、底色、勾选与原图 URL；原图仍可能要求站点认证，不代表图片已归档 |
 | Word 字体、分页、浮动布局、修订和批注 | 不保证还原，应核对转换结果 |
 | HTML 脚本、样式、表单、iframe、专有宏 | 清理，不执行 |
-| PDF、旧版 `.doc`、PPT、Excel | 暂不支持，不伪装成成功转换 |
+| 旧版二进制 `.doc/.wps` | Mac 使用系统转换，Windows 需先另存为 DOCX |
+| PDF、PPT、Excel | 暂不支持，不伪装成成功转换 |
 
 预览是近似样式，不是 Confluence 官方渲染器。不承诺任意格式逐像素无损。
 回读核验比较文字与表格、行、图片数量，不代表视觉排版完全一致。
@@ -66,7 +99,7 @@ PagePort 是基于 [Mark](https://github.com/kovetskiy/mark) 的 macOS 文档发
 - 插入图片支持选择、粘贴和拖入本地文件；不抓取远程图片。
 - “发布预览”为只读近似效果，基于后端实际转换结果；不是当前光标所在的编辑页面。
 - Markdown 源码与可视化视图同步。编辑期间立即失效原发布确认，不允许发布旧稿。
-- `Cmd+S` 或右上角下载图标导出 Markdown。不会静默覆盖原文件。关闭或替换未导出文档时提示确认；没有持久化草稿恢复。
+- `Cmd/Ctrl+S` 或“保存到文件”保存当前 Markdown。通过原生文件选择打开的 MD/TXT 可写回；Word/HTML 编辑结果另存为 Markdown，不覆写原件。关闭或替换未保存文档时提示确认；没有持久化草稿恢复。
 - Word / HTML 导入后也可编辑，但编辑器会按支持的结构规范化，不保证任意原始 HTML 无损。缺图文档先补图或修复源码，避免把占位符误发为正文。
 - 合并表格、对齐和扩展文字样式以 HTML 混合 Markdown 导出，避免标准 Markdown 无法表达的格式被丢弃。
 
@@ -119,7 +152,7 @@ Markdown 源码也支持单独一行 `[TOC]`，代码块中的同名文本不会
 ```sh
 npm ci
 npm run prepare:mac
-npm test
+MARK_BIN="$PWD/resources/mark" npm test
 npm run desktop
 # 生成 DMG 和 ZIP，输出到 release/
 npm run package:mac
@@ -129,6 +162,38 @@ npm run package:mac
 Mark 二进制不提交到 Git。`package:mac` 默认构建本机架构。
 运行数据位于 `~/Library/Application Support/PagePort/data`（实际名称以应用为准）。
 发布前的备份位于其中的 `backups` 子目录；退出应用会清除内存中的会话及文档。
+
+## 从源码构建 Windows 应用
+
+要求 Windows 10/11 x64、Node.js 22.16+、Go 1.27.3 及系统自带的 `tar`。
+PowerShell：
+
+```powershell
+npm ci
+npm run prepare:windows
+$env:MARK_BIN = "$pwd/resources/mark.exe"
+npm test
+npm run desktop
+# 生成 NSIS 安装程序，输出到 release/
+npm run package:windows
+```
+
+Mark 官方 16.22.0 不提供 Windows 二进制包。`prepare:windows` 下载固定官方源码提交，
+校验归档 SHA-256，以 Go 模块校验和验证依赖，再编译 `mark.exe`；不使用来源不明的第三方包。
+Windows 运行数据位于 `%APPDATA%\PagePort\data`，更新安装保留该目录。
+CI 在 Windows 上执行转换测试、开发/打包应用检查，并在隔离目录实际安装后启动检查。
+私有模板不在仓库内，CI 明确跳过该项；旧二进制 Office 转换测试仅在 Mac 执行。
+
+## 发布更新
+
+每次修改使用新版本号，同步 `package.json` 与锁文件，不覆盖旧 tag 或同名旧资产。
+先通过 CI 和实际安装包检查，再以同一源码提交创建正式 GitHub Release。
+Mac 资产命名为 `PagePort-版本-arm64.dmg`（Intel 对应 `x64`），
+Windows 为 `PagePort-版本-x64-setup.exe`，必须与版本 tag 一致。
+Windows 安装程序可从该提交成功 CI 的 `pageport-windows-x64` artifact 获取。
+上传完成后核对版本、tag 指向、大小和 GitHub asset digest，并公布 `SHA256SUMS.txt`。
+检测客户端以 GitHub API 的 asset digest 为准，摘要文件供人工核验，不替代代码签名。
+建议所有资产上传并核验后才将 Release 从草稿发布，以免用户过早收到不完整版本。
 
 ## 可选 Web 模式
 
@@ -171,7 +236,7 @@ npm run build
 ## 安全与数据
 
 - Confluence 凭据仅在浏览器当前内存及服务端请求内存中用于认证，不落盘、不写日志、不放入进程参数。
-- Mac 应用仅在随机本机端口运行服务，使用每次启动生成的私密请求凭证，不允许普通浏览器或其他网页访问。
+- 桌面应用仅在随机本机端口运行服务，使用每次启动生成的私密请求凭证，不允许普通浏览器或其他网页访问。
 - 应用窗口禁用 Node 集成、启用上下文隔离与沙箱，采用非持久化浏览器会话。
 - 文档和预览仅保留在本机短期内存会话，30 分钟到期，重启清除；每个会话仅保留当前文档。
 - 原页面备份持久化到应用数据目录，含公司正文，但不含认证密码。可选 Docker 模式存放于 `/app/data/backups`。
@@ -193,10 +258,10 @@ PagePort 自有代码采用 MIT 协议，Mark 与其他依赖保留各自协议�
 
 ---
 
-PagePort is a local-first macOS Confluence publisher powered by Mark.
+PagePort is a local-first macOS and Windows Confluence publisher powered by Mark.
 Import Markdown, HTML, DOCX or text; review a sanitized approximate preview;
 inspect and back up an existing page; then explicitly confirm a version-protected
-update. Mark is bundled; documents and passwords stay on your Mac until sent
+update. Mark is bundled; documents and passwords stay on your computer until sent
 directly to your chosen Confluence instance. Passwords are transient, not stored.
 Fidelity is structural, not pixel-perfect. An optional self-hosted web mode is
 available for trusted infrastructure.

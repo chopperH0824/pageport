@@ -26,8 +26,10 @@ import { TableOfContents } from './TableOfContents.jsx';
 import {
   Indent, Panel, Status, SearchReplace, PANEL_TYPES, STATUS_COLORS,
   getSearch, updateSearch, stepSearch, replaceMatches, countWords,
+  ConfluenceTable, ConfluenceTableCell, ConfluenceTableHeader,
 } from './editor-extensions.js';
 import './rich-editor.css';
+import { shortcutLabel } from './platform.js';
 
 const TEXT_COLORS=[
   {value:'#172b4d',label:'深灰'},{value:'#97a0af',label:'浅灰'},{value:'#c0392b',label:'红色'},{value:'#d35400',label:'橙色'},
@@ -42,7 +44,7 @@ const SHORTCUTS=[
   ['加粗 / 斜体 / 下划线','⌘B / ⌘I / ⌘U'],['删除线 / 高亮','⇧⌘S / ⇧⌘H'],['行内代码','⌘E'],['上标 / 下标','⌘. / ⌘,'],
   ['正文 / 标题 1–6','⌥⌘0 / ⌥⌘1–6'],['左 / 中 / 右 / 两端对齐','⇧⌘L / ⇧⌘E / ⇧⌘R / ⇧⌘J'],['增加 / 减少缩进','⌘] / ⌘['],
   ['有序 / 无序 / 任务列表','⇧⌘7 / ⇧⌘8 / ⇧⌘9'],['引用 / 代码块','⇧⌘B / ⌥⌘C'],['插入链接','⌘K'],['查找与替换','⌘F'],
-  ['段内换行','⇧↩'],['撤销 / 重做','⌘Z / ⇧⌘Z'],['导出 Markdown','⌘S'],
+  ['段内换行','⇧↩'],['撤销 / 重做','⌘Z / ⇧⌘Z'],['保存到文件','⌘S'],
 ];
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 
@@ -51,6 +53,7 @@ const LocalImage=Image.extend({
 });
 
 function Tool({label,icon:Icon,active=false,disabled=false,onClick,children}) {
+  label = shortcutLabel(label);
   return <button type="button" className={`format-tool ${active?'active':''}`} title={label} aria-label={label} aria-pressed={active} disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={onClick}><Icon size={16}/>{children}</button>;
 }
 function ColorTool({label,icon,color,active,disabled,open,onApply,onToggle}) {
@@ -101,7 +104,8 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
     extensions:[
       StarterKit.configure({link:{openOnClick:false,autolink:false},heading:{levels:[1,2,3,4,5,6]}}),
       LocalImage.configure({allowBase64:true}),
-      TableKit.configure({table:{resizable:false}}),
+      TableKit.configure({table:false,tableCell:false,tableHeader:false}),
+      ConfluenceTable, ConfluenceTableCell, ConfluenceTableHeader,
       TaskList,TaskItem.configure({nested:true}),
       TextAlign.configure({types:['heading','paragraph']}),
       Highlight.configure({multicolor:true}),Subscript,Superscript,
@@ -292,7 +296,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
     {panel==='highlight' && <Swatches title="背景高亮" colors={HIGHLIGHT_COLORS} current={state.highlightColor} onPick={applyHighlight} onClear={()=>{run(c=>c.unsetHighlight());setPanel('');}} clearLabel="无高亮" onClose={closePanel}/>}
     {panel==='panel' && <div className="format-popover panel-popover" role="dialog" aria-label="提示面板"><span className="popover-title">提示面板</span>{PANEL_TYPES.map(p=><button type="button" key={p.type} className={`panel-choice ${state.panel===p.type?'selected':''}`} data-panel={p.type} onMouseDown={e=>e.preventDefault()} onClick={()=>{run(c=>c.setPanel(p.type));setPanel('');}}>{p.label}</button>)}<span className="popover-hint">选中段落后点击类型，转换为 Confluence 原生面板</span><Tool label="关闭格式面板" icon={X} onClick={closePanel}/></div>}
     {panel==='status' && <form className="format-popover status-popover" onSubmit={insertStatus}><span className="popover-title">状态标签</span><input aria-label="状态文字" autoFocus maxLength={40} value={status.text} onChange={e=>setStatus({...status,text:e.target.value})}/>{STATUS_COLORS.map(s=><button type="button" key={s.color} className={`status-choice ${status.color===s.color?'selected':''}`} data-pageport-status={s.color} title={s.label} onClick={()=>setStatus({...status,color:s.color})}>{status.text.trim() || '状态'}</button>)}<button className="small-button" type="submit">插入</button><Tool label="关闭格式面板" icon={X} onClick={closePanel}/></form>}
-    {panel==='symbols' && <div className="format-popover symbol-popover" role="dialog" aria-label="特殊符号">{SYMBOLS.map(symbol=><button type="button" key={symbol} className="symbol" onMouseDown={e=>e.preventDefault()} onClick={()=>run(c=>c.insertContent(symbol))}>{symbol}</button>)}<button type="button" className="small-button" onMouseDown={e=>e.preventDefault()} onClick={()=>{run(c=>c.insertContent(today()));setPanel('');}}><CalendarDays size={13}/>今天 {today()}</button><Tool label="关闭格式面板" icon={X} onClick={closePanel}/></div>}
+    {panel==='symbols' && <div className="format-popover symbol-popover" role="dialog" aria-label="特殊符号">{SYMBOLS.map(symbol=><button type="button" key={symbol} className="symbol" title={`插入符号 ${symbol}`} aria-label={`插入符号 ${symbol}`} onMouseDown={e=>e.preventDefault()} onClick={()=>run(c=>c.insertContent(symbol))}>{symbol}</button>)}<button type="button" className="small-button" title="插入今天的日期" onMouseDown={e=>e.preventDefault()} onClick={()=>{run(c=>c.insertContent(today()));setPanel('');}}><CalendarDays size={13}/>今天 {today()}</button><Tool label="关闭格式面板" icon={X} onClick={closePanel}/></div>}
     {panel==='find' && <div className="format-popover find-popover" role="search">
       <Search size={14}/>
       <input ref={findInput} aria-label="查找内容" placeholder="查找" value={search.term || ''} onChange={e=>updateSearch(editor,{term:e.target.value,index:0},true)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();stepSearch(editor,e.shiftKey?-1:1);}}}/>
@@ -305,11 +309,11 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
       <Tool label="全部替换" icon={ReplaceAll} disabled={off || !search.total} onClick={()=>replaceMatches(editor,replacement,true)}/>
       <Tool label="关闭查找" icon={X} onClick={closePanel}/>
     </div>}
-    {panel==='help' && <div className="format-popover shortcut-popover" role="dialog" aria-label="快捷键"><dl>{SHORTCUTS.map(([name,keys])=><div key={name}><dt>{name}</dt><dd>{keys}</dd></div>)}</dl><Tool label="关闭格式面板" icon={X} onClick={closePanel}/></div>}
+    {panel==='help' && <div className="format-popover shortcut-popover" role="dialog" aria-label="快捷键"><dl>{SHORTCUTS.map(([name,keys])=><div key={name}><dt>{name}</dt><dd>{shortcutLabel(keys)}</dd></div>)}</dl><Tool label="关闭格式面板" icon={X} onClick={closePanel}/></div>}
     {state.panel && !off && <div className="table-context" role="toolbar" aria-label="提示面板操作">
       <span>提示面板</span>
       {PANEL_TYPES.map(p=><button key={p.type} className={`panel-choice ${state.panel===p.type?'selected':''}`} data-panel={p.type} onMouseDown={e=>e.preventDefault()} onClick={()=>run(c=>c.setPanel(p.type))}>{p.label}</button>)}
-      <button onMouseDown={e=>e.preventDefault()} onClick={()=>run(c=>c.unsetPanel())}>移除面板</button>
+      <button title="移除提示面板" onMouseDown={e=>e.preventDefault()} onClick={()=>run(c=>c.unsetPanel())}>移除面板</button>
     </div>}
     {state.status && !off && <div className="table-context" role="toolbar" aria-label="状态标签操作">
       <span>状态标签</span>
@@ -323,8 +327,8 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
       <Tool label="在下方插入行" icon={BetweenHorizontalEnd} disabled={off} onClick={()=>run(c=>c.addRowAfter())}/>
       <Tool label="在左侧插入列" icon={BetweenVerticalStart} disabled={off} onClick={()=>run(c=>c.addColumnBefore())}/>
       <Tool label="在右侧插入列" icon={BetweenVerticalEnd} disabled={off} onClick={()=>run(c=>c.addColumnAfter())}/>
-      <button disabled={off} onMouseDown={e=>e.preventDefault()} onClick={()=>run(c=>c.deleteRow())}>删除行</button>
-      <button disabled={off} onMouseDown={e=>e.preventDefault()} onClick={()=>run(c=>c.deleteColumn())}>删除列</button>
+      <button title="删除当前行" disabled={off} onMouseDown={e=>e.preventDefault()} onClick={()=>run(c=>c.deleteRow())}>删除行</button>
+      <button title="删除当前列" disabled={off} onMouseDown={e=>e.preventDefault()} onClick={()=>run(c=>c.deleteColumn())}>删除列</button>
       <Tool label="合并单元格" icon={Combine} disabled={off || !state.canMerge} onClick={()=>run(c=>c.mergeCells())}/>
       <Tool label="拆分单元格" icon={Split} disabled={off || !state.canSplit} onClick={()=>run(c=>c.splitCell())}/>
       <Tool label="表头行" icon={PanelTop} disabled={off} onClick={()=>run(c=>c.toggleHeaderRow())}/>

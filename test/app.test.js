@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import request from 'supertest';
@@ -11,7 +13,20 @@ import { convertDocument, cleanHtml } from '../server/convert.js';
 import { parseTarget, credentials, contentSignature } from '../server/confluence.js';
 import { toMarkdown } from '../src/markdown.js';
 
+const exec = promisify(execFile);
 const file = (text, name='test.md') => ({originalname:name, buffer:Buffer.from(text)});
+const officeXml = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+async function officeFile(parts, name='sample.docx') {
+  const zip=new JSZip();
+  zip.file('[Content_Types].xml','<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="emf" ContentType="image/x-emf"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  zip.file('_rels/.rels','<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  zip.file('word/document.xml',parts.document);
+  if(parts.styles)zip.file('word/styles.xml',parts.styles);
+  if(parts.numbering)zip.file('word/numbering.xml',parts.numbering);
+  if(parts.rels)zip.file('word/_rels/document.xml.rels',parts.rels);
+  if(parts.media)zip.file(parts.media.name,parts.media.data);
+  return {originalname:name,buffer:await zip.generateAsync({type:'nodebuffer'})};
+}
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZWQAAAAASUVORK5CYII=','base64');
 
 test('real Mark preserves Chinese, emphasis, tables, lists and literal code', async()=>{
@@ -173,6 +188,98 @@ test('Word headings, bold text and tables survive a valid DOCX conversion',async
   assert.match(doc.storage,/<strong>Word text<\/strong>/);
   assert.equal(doc.stats.tables,1);
   assert.ok(doc.warnings.length);
+});
+
+test('WPS-style headings, text boxes, Chinese numbering and unknown images stay visible',async()=>{
+  const styled=await officeFile({
+    styles:`<w:styles xmlns:w="${officeXml}"><w:style w:type="paragraph" w:styleId="a1"><w:name w:val="标题 1"/></w:style></w:styles>`,
+    document:`<w:document xmlns:w="${officeXml}" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><w:body><w:p><w:pPr><w:pStyle w:val="a1"/></w:pPr><w:r><w:t>章节</w:t></w:r></w:p><w:p><w:pPr><w:outlineLvl w:val="1"/></w:pPr><w:r><w:t>第二节</w:t></w:r></w:p><mc:AlternateContent><mc:Choice Requires="wps"><w:txbxContent><w:p><w:r><w:t>文本框正文</w:t></w:r></w:p></w:txbxContent></mc:Choice><mc:Fallback><w:pict/></mc:Fallback></mc:AlternateContent></w:body></w:document>`,
+  });
+  const styledDoc=await convertDocument(styled);
+  const styledHtml=load(styledDoc.storage,{xmlMode:true});
+  assert.equal(styledHtml('h1').text(),'章节');
+  assert.equal(styledHtml('h2').text(),'第二节');
+  assert.match(styledHtml.text(),/文本框正文/);
+  const numbered=await officeFile({
+    numbering:`<w:numbering xmlns:w="${officeXml}"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="chineseCounting"/><w:lvlText w:val="%1、"/></w:lvl><w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="decimalEnclosedCircle"/><w:lvlText w:val="（%2）"/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`,
+    document:`<w:document xmlns:w="${officeXml}"><w:body><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>背景</w:t></w:r></w:p><w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>细节</w:t></w:r></w:p><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>方案</w:t></w:r></w:p></w:body></w:document>`,
+  });
+  const numberedDoc=await convertDocument(numbered);
+  const numberedText=load(numberedDoc.storage,{xmlMode:true}).text();
+  assert.match(numberedText,/一、背景/);
+  assert.match(numberedText,/（①）细节/);
+  assert.match(numberedText,/二、方案/);
+  assert.doesNotMatch(numberedDoc.storage,/<ol>/);
+  const image=await officeFile({
+    rels:'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.emf"/></Relationships>',
+    media:{name:'word/media/image1.emf',data:Buffer.from('not-an-image')},
+    document:`<w:document xmlns:w="${officeXml}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body><w:p><w:r><w:t>前后文</w:t></w:r><w:r><w:drawing><wp:inline><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:blipFill><a:blip r:embed="rId1"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:body></w:document>`,
+  });
+  const imageDoc=await convertDocument(image);
+  const imageText=load(imageDoc.storage,{xmlMode:true}).text();
+  assert.match(imageText,/前后文/);
+  assert.match(imageText,/未转换的图片/);
+  assert.match(imageDoc.warnings.join('\n'),/图片格式无法放入页面/);
+  const wps=await officeFile({document:`<w:document xmlns:w="${officeXml}"><w:body><w:p><w:r><w:t>金山正文</w:t></w:r></w:p></w:body></w:document>`},'方案.wps');
+  const wpsDoc=await convertDocument(wps);
+  assert.match(load(wpsDoc.storage,{xmlMode:true}).text(),/金山正文/);
+  assert.match(wpsDoc.warnings.join('\n'),/WPS/);
+});
+
+test('legacy .doc files convert on macOS',async(t)=>{
+  if(process.platform!=='darwin'){t.skip('Legacy binary Office conversion requires macOS textutil.');return;}
+  const source=await officeFile({document:`<w:document xmlns:w="${officeXml}"><w:body><w:p><w:r><w:t>旧版正文</w:t></w:r></w:p></w:body></w:document>`});
+  const dir=await mkdtemp(path.join(tmpdir(),'pageport-doc-'));
+  try {
+    const docx=path.join(dir,'input.docx');
+    const doc=path.join(dir,'input.doc');
+    await writeFile(docx,source.buffer);
+    await exec('/usr/bin/textutil',['-convert','doc','-output',doc,docx]);
+    const converted=await convertDocument({originalname:'旧版.doc',buffer:await readFile(doc)});
+    assert.match(load(converted.storage,{xmlMode:true}).text(),/旧版正文/);
+    assert.match(converted.warnings.join('\n'),/旧版/);
+  } finally { await rm(dir,{recursive:true,force:true}); }
+});
+
+test('styled Confluence tables stay HTML so column width and cell colour survive editing',()=>{
+  const source=toMarkdown('<table style="width: 28.379%"><tbody><tr><td style="text-align: center; background-color: #fffae6">P0</td><td>基础功能</td></tr></tbody></table>');
+  assert.match(source,/width:\s*28\.379%/);
+  assert.match(source,/background-color:\s*#fffae6/i);
+  assert.match(source,/text-align:\s*center/);
+});
+
+test('Confluence web Word export restores tables, colours, ticks and page links',async()=>{
+  const html='<html><head><title>模板</title></head><body><h1>模板</h1><table class="confluenceTable"><tr><td class="highlight-#fffae6 confluenceTd" style="text-align: center;">P0</td><td>基础功能</td></tr></table><p><img class="emoticon emoticon-tick" data-emoticon-name="tick" alt="(滴答)" src="tick.svg"></p><p><a href="/pages/viewpage.action?pageId=68254847">相关页</a> <a href="https://confluence.example.com/pages/viewpage.action?pageId=1">外链</a></p></body></html>';
+  const qp=[...Buffer.from(html,'utf8')].map(byte => byte===61 || byte>126 || byte<32 && byte!==10 && byte!==13 ? `=${byte.toString(16).toUpperCase().padStart(2,'0')}` : String.fromCharCode(byte)).join('');
+  const mime=Buffer.from(`Date: Thu, 15 Oct 2026 14:25:35 +0800\r\nSubject: Exported From Confluence\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="----=_Part_1"\r\n\r\n------=_Part_1\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n${qp.replace(/\n/g,'\r\n')}\r\n------=_Part_1--\r\n`,'latin1');
+  const doc=await convertDocument({originalname:'模板.doc',buffer:mime});
+  const $=load(doc.storage,{xmlMode:true});
+  assert.equal(doc.title,'模板');
+  assert.equal($('td').first().text(),'P0');
+  assert.match($('td').first().attr('style') || '',/background-color:\s*#fffae6/i);
+  assert.match($('td').first().attr('style') || '',/text-align:\s*center/);
+  assert.match(doc.storage,/<ac:emoticon ac:name="tick"\s*\/>/);
+  assert.match(doc.storage,/https:\/\/confluence\.example\.com\/pages\/viewpage\.action\?pageId=68254847/);
+  assert.doesNotMatch(load(doc.storage,{xmlMode:true}).text(),/MIME-Version|quoted-printable/);
+});
+
+test('the private Confluence PRD template imports as the original page',async(t)=>{
+  let buffer;
+  try { buffer=await readFile(new URL('../local-private/fixtures/confluence-prd-template.doc',import.meta.url)); }
+  catch(error) {
+    if(error.code!=='ENOENT')throw error;
+    t.skip('Private template is not available in this checkout.');
+    return;
+  }
+  const doc=await convertDocument({originalname:'private-template.doc',buffer});
+  const text=load(doc.storage,{xmlMode:true}).text().replace(/\s+/g,'');
+  assert.ok(doc.title);
+  assert.equal(doc.stats.tables,5);
+  assert.ok(text.length > 100);
+  assert.equal((doc.storage.match(/<ac:emoticon ac:name="tick"\s*\/>/g) || []).length,129);
+  assert.match(doc.storage,/background-color:\s*#fffae6/i);
+  assert.equal(doc.blockers.length,0);
+  assert.doesNotMatch(text,/MIME-Version|quoted-printable|xmlns:w/);
 });
 
 test('targets are fixed allowlisted HTTPS origins, credentials validated',()=>{

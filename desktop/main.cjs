@@ -1,17 +1,45 @@
-const { app, BrowserWindow, session, shell, dialog, Menu } = require('electron');
+const { app, BrowserWindow, session, shell, dialog, Menu, ipcMain, net } = require('electron');
 const { fork } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
-const { mkdir, writeFile } = require('node:fs/promises');
+const { mkdir, readFile, writeFile } = require('node:fs/promises');
 const { mkdtempSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
+const { UpdateManager } = require('./updates.cjs');
 
 app.setName('PagePort');
-let backend, window, origin;
+let backend, window, origin, updater;
+let automaticUpdates = true;
+const openedFiles = new Map();
 const desktopToken = randomBytes(32).toString('hex');
 const smoke = process.argv.includes('--smoke');
 const appRoot = path.resolve(__dirname,'..');
 if(smoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'pageport-smoke-profile-')));
+
+function updateState() { return { ...updater.state, automatic: automaticUpdates }; }
+function sendUpdateState(show = false) {
+  if (window && !window.isDestroyed()) window.webContents.send('pageport:update-state', { ...updateState(), show });
+}
+for (const [action, handler] of Object.entries({
+  state: () => updateState(),
+  check: async () => { await updater.check(); return updateState(); },
+  download: async () => { await updater.download(); return updateState(); },
+  reveal: () => { if (updater.state.status === 'downloaded' && updater.downloaded) shell.showItemInFolder(updater.downloaded.file); return updateState(); },
+  release: () => { if (updater.state.releaseUrl) openExternal(updater.state.releaseUrl); return updateState(); },
+  configure: async automatic => {
+    if (typeof automatic !== 'boolean') throw new Error('Invalid update preference.');
+    await writeFile(path.join(app.getPath('userData'), 'update-settings.json'), JSON.stringify({ automatic }), { mode: 0o600 });
+    automaticUpdates = automatic;
+    sendUpdateState();
+    return updateState();
+  },
+})) {
+  ipcMain.handle(`pageport:update-${action}`, (event, ...args) => {
+    if (!updater || event.sender !== window?.webContents || event.senderFrame !== window.webContents.mainFrame ||
+      new URL(event.senderFrame.url).origin !== origin) throw new Error('Untrusted update request.');
+    return handler(...args);
+  });
+}
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
@@ -27,14 +55,83 @@ function openExternal(url) {
   try { if (new URL(url).protocol === 'https:') shell.openExternal(url); } catch {}
 }
 
+const textExtensions = new Set(['.md', '.markdown', '.txt']);
+const blockedExtensions = new Set(['.docx', '.doc', '.html', '.htm', '.wps']);
+
+function rememberFile(filePath) {
+  const token = randomBytes(16).toString('hex');
+  openedFiles.set(token, filePath);
+  return token;
+}
+
+async function readOpenedFile(filePath) {
+  try {
+    const buffer = await readFile(filePath);
+    if (buffer.length > 10 * 1024 * 1024) return { error: '单文件不能超过 10 MB。' };
+    let token = [...openedFiles.entries()].find(([, stored]) => stored === filePath)?.[0];
+    if (!token) token = rememberFile(filePath);
+    return { token, name: path.basename(filePath), buffer };
+  } catch {
+    return { error: '无法读取这个文件。' };
+  }
+}
+
+ipcMain.handle('pageport:open-document', async () => {
+  const choice = await dialog.showOpenDialog(window, {
+    properties: ['openFile'],
+    filters: [{ name: '文档', extensions: ['md', 'markdown', 'html', 'htm', 'docx', 'doc', 'wps', 'txt'] }],
+  });
+  if (choice.canceled || !choice.filePaths[0]) return { canceled: true };
+  return readOpenedFile(choice.filePaths[0]);
+});
+
+ipcMain.handle('pageport:read-document', async (_event, token) => {
+  if (typeof token !== 'string' || !openedFiles.has(token)) return { error: '原文件已不可用，请重新导入。' };
+  return readOpenedFile(openedFiles.get(token));
+});
+
+ipcMain.handle('pageport:save-document', async (_event, payload) => {
+  const text = typeof payload?.text === 'string' ? payload.text : '';
+  if (text.length > 8000000) return { error: '内容过大，无法保存。' };
+  const existing = payload?.overwrite && typeof payload.token === 'string' ? openedFiles.get(payload.token) : '';
+  const existingExt = existing ? path.extname(existing).toLowerCase() : '';
+  let filePath = existing && textExtensions.has(existingExt) ? existing : '';
+  const overwritten = Boolean(filePath);
+  if (!filePath) {
+    const choice = await dialog.showSaveDialog(window, {
+      defaultPath: typeof payload?.name === 'string' ? payload.name : 'document.md',
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    });
+    if (choice.canceled || !choice.filePath) return { canceled: true };
+    filePath = choice.filePath;
+    const ext = path.extname(filePath).toLowerCase();
+    if (blockedExtensions.has(ext)) return { error: '不能把编辑结果写回 Word 或 HTML 原件。请保存为 .md 文件。' };
+    if (ext !== '.md') filePath += '.md';
+  }
+  try { await writeFile(filePath, text, 'utf8'); }
+  catch { return { error: '无法写入这个文件。' }; }
+  return { token: rememberFile(filePath), name: path.basename(filePath), overwritten };
+});
+
 async function start() {
   const dataDir=path.join(app.getPath('userData'),'data');
-  const mark=app.isPackaged ? path.join(process.resourcesPath,'bin','mark') : path.join(appRoot,'resources','mark');
+  const markName=process.platform==='win32'?'mark.exe':'mark';
+  const mark=app.isPackaged ? path.join(process.resourcesPath,'bin',markName) : path.join(appRoot,'resources',markName);
   await mkdir(dataDir,{recursive:true,mode:0o700});
+  try { automaticUpdates = JSON.parse(await readFile(path.join(app.getPath('userData'), 'update-settings.json'), 'utf8')).automatic !== false; } catch {}
+  updater = new UpdateManager({
+    version: app.getVersion(), directory: path.join(app.getPath('userData'), 'updates'),
+    fetcher: smoke ? async () => {
+      if (!process.argv.includes('--smoke-updates')) throw new Error('Network disabled during smoke tests.');
+      return Response.json({ tag_name: 'v99.0.0', body: '更新检测测试\n\n• 改进文档编辑与跨平台兼容。\n• 安装包按当前系统匹配。', published_at: '2026-10-23T00:00:00Z', assets: [] });
+    } : (url, options) => net.fetch(url, options),
+  });
+  updater.on('change', () => sendUpdateState());
   backend=fork(path.join(appRoot,'server','index.js'),[],{
     execPath:process.execPath,
     env:{
       PATH:process.env.PATH || '/usr/bin:/bin', HOME:app.getPath('home'), LANG:'en_US.UTF-8',
+      ...(process.platform==='win32'?{SystemRoot:process.env.SystemRoot,USERPROFILE:app.getPath('home'),TEMP:tmpdir(),TMP:tmpdir()} : {}),
       ELECTRON_RUN_AS_NODE:'1', NODE_ENV:'production',
       HOST:'127.0.0.1',PORT:'0', MARK_BIN:mark, DATA_DIR:dataDir,
       ACCESS_PASSWORD:desktopToken, PAGEPORT_DESKTOP_TOKEN:desktopToken,
@@ -57,7 +154,7 @@ async function start() {
   window=new BrowserWindow({
     width:1440,height:960,minWidth:940,minHeight:660,backgroundColor:'#f5f8f9',
     title:'PagePort · 本地文档发布台',show:false,
-    webPreferences:{session:isolatedSession,nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true},
+    webPreferences:{session:isolatedSession,preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true},
   });
   if(smoke) window.webContents.on('console-message',(_event,...details)=>console.log('Renderer:',...details));
   window.webContents.setWindowOpenHandler(({url})=>{openExternal(url);return {action:'deny'};});
@@ -65,16 +162,21 @@ async function start() {
     if(!url.startsWith(origin+'/')){event.preventDefault();openExternal(url);}
   });
   window.webContents.on('will-prevent-unload',event=>{
-    const choice=dialog.showMessageBoxSync(window,{type:'warning',buttons:['继续编辑','放弃修改并关闭'],defaultId:0,cancelId:0,message:'文档修改尚未导出',detail:'关闭后未导出的本地修改将丢失。'});
+    const choice=dialog.showMessageBoxSync(window,{type:'warning',buttons:['继续编辑','放弃修改并关闭'],defaultId:0,cancelId:0,message:'文档修改尚未保存',detail:'关闭后未保存到文件的本地修改将丢失。'});
     if(choice===1)event.preventDefault();
   });
+  const checkForUpdates = () => { sendUpdateState(true); updater.check(); };
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    {label:'PagePort',submenu:[{role:'about'},{type:'separator'},{label:'打开备份文件夹',click:()=>shell.openPath(path.join(dataDir,'backups'))},{type:'separator'},{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'},{role:'quit'}]},
+    {label:'PagePort',submenu:[{role:'about'},{label:'检查更新…',click:checkForUpdates},{type:'separator'},{label:'打开备份文件夹',click:()=>shell.openPath(path.join(dataDir,'backups'))},{type:'separator'},...(process.platform==='darwin'?[{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'}]:[]),{role:'quit'}]},
     {label:'编辑',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},
     {label:'窗口',submenu:[{role:'minimize'},{role:'zoom'},{role:'front'}]},
   ]));
   await window.loadURL(origin);
   if(!smoke)window.show();
+  if(!smoke) {
+    setTimeout(() => { if (automaticUpdates) updater.check(); }, 10000).unref();
+    setInterval(() => { if (automaticUpdates) updater.check(); }, 6 * 60 * 60 * 1000).unref();
+  }
   app.on('activate',()=>{if(window){window.show();window.focus();}});
   backend.on('exit',()=>{if(window && !window.isDestroyed()){dialog.showErrorBox('本地服务已停止','请退出并重新打开 PagePort。');app.quit();}});
   if(smoke) {
@@ -88,7 +190,7 @@ async function start() {
         preview:document.querySelector('iframe')?.getAttribute('srcdoc') || '',
         rendered:document.querySelector('.prose-editor')?.innerText || '',
         sync:document.querySelector('.preview-state')?.textContent || '',
-        undoDisabled:document.querySelector('[aria-label="撤销 (⌘Z)"]')?.disabled,
+        undoDisabled:document.querySelector('[aria-label^="撤销 ("]')?.disabled,
         errors:[...document.querySelectorAll('[role="alert"]')].map(e=>e.textContent),
         overflow:document.documentElement.scrollWidth>innerWidth
       })`);
@@ -115,7 +217,7 @@ async function start() {
       window.webContents.insertText('目录更新验证');
       await new Promise(resolve=>setTimeout(resolve,300));
       state.toc.liveUpdate=await window.webContents.executeJavaScript(`document.querySelector('.contents-node nav').textContent.includes('目录更新验证')`);
-      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="撤销 (⌘Z)"]').click()`);
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label^="撤销 ("]').click()`);
       state.toc.undo=await window.webContents.executeJavaScript(`!document.querySelector('.contents-node nav').textContent.includes('目录更新验证')`);
       await window.webContents.executeJavaScript(`document.querySelector('.editor-mode-tools button').click()`);
       const previewDeadline=Date.now()+15000;
@@ -138,7 +240,7 @@ async function start() {
         panel:!!document.querySelector('.prose-editor [data-pageport-panel="info"]'),
         words:document.querySelector('.editor-status')?.textContent.includes('字数')
       })`);
-      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="查找与替换 (⌘F)"]').click()`);
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label^="查找与替换 ("]').click()`);
       await new Promise(resolve=>setTimeout(resolve,100));
       await window.webContents.executeJavaScript(`
         const input=document.querySelector('[aria-label="查找内容"]');
@@ -152,6 +254,47 @@ async function start() {
       state.editor.errors=await window.webContents.executeJavaScript(`[...document.querySelectorAll('[role="alert"]')].map(e=>e.textContent)`);
       state.editor.passed=state.editor.status && state.editor.panel && state.editor.words && state.editor.search && !state.editor.errors.length;
     }
+    if (process.argv.includes('--smoke-updates')) {
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="检查更新"]').click()`);
+      await new Promise(resolve=>setTimeout(resolve,500));
+      state.updates = await window.webContents.executeJavaScript(`({
+        heading: document.querySelector('#update-heading')?.textContent,
+        notes: !!document.querySelector('.update-notes'),
+        fallback: [...document.querySelectorAll('.update-modal button')].some(b=>b.textContent.includes('前往发布页')),
+        focused: !!document.activeElement?.closest('.update-modal'),
+        overflow: document.documentElement.scrollWidth > innerWidth
+      })`);
+      await writeFile(path.join(output,'desktop-updates.png'),(await window.webContents.capturePage()).toPNG());
+      const mockInstaller = Buffer.from('PagePort isolated update download test');
+      const mockName = process.platform==='win32' ? 'PagePort-99.0.0-x64-setup.exe' : `PagePort-99.0.0-${process.arch}.dmg`;
+      updater.options.fetcher = async address => address.includes('api.github.com') ? Response.json({
+        tag_name:'v99.0.0',body:'下载与校验测试',assets:[{name:mockName,state:'uploaded',size:mockInstaller.length,
+          digest:`sha256:${require('node:crypto').createHash('sha256').update(mockInstaller).digest('hex')}`,
+          browser_download_url:`https://github.com/chopperH0824/pageport/releases/download/v99.0.0/${mockName}`}],
+      }) : new Response(mockInstaller);
+      await updater.check();
+      await new Promise(resolve=>setTimeout(resolve,100));
+      await window.webContents.executeJavaScript(`document.querySelector('.update-modal button.primary').click()`);
+      const downloadDeadline = Date.now()+5000;
+      while (updater.state.status !== 'downloaded' && Date.now()<downloadDeadline) await new Promise(resolve=>setTimeout(resolve,100));
+      state.updates.downloaded = updater.state.status === 'downloaded' &&
+        await window.webContents.executeJavaScript(`document.querySelector('.update-verified')?.textContent.includes('SHA-256')`);
+      await window.webContents.executeJavaScript(`document.querySelector('.update-preference input').click()`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      state.updates.preference = !automaticUpdates && JSON.parse(await readFile(path.join(app.getPath('userData'),'update-settings.json'),'utf8')).automatic === false;
+      window.setSize(940,700);
+      await new Promise(resolve=>setTimeout(resolve,200));
+      state.updates.narrowOverflow = await window.webContents.executeJavaScript(`(() => {
+        const rect = document.querySelector('.update-modal').getBoundingClientRect();
+        return rect.left < 0 || rect.right > innerWidth || rect.bottom > innerHeight || rect.top < 0;
+      })()`);
+      await writeFile(path.join(output,'desktop-updates-downloaded.png'),(await window.webContents.capturePage()).toPNG());
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="关闭更新"]').click()`);
+      state.updates.passed = state.updates.heading === 'PagePort 99.0.0' && state.updates.notes && state.updates.fallback && state.updates.focused &&
+        state.updates.downloaded && state.updates.preference && !state.updates.overflow && !state.updates.narrowOverflow;
+      window.setSize(1440,960);
+      await new Promise(resolve=>setTimeout(resolve,100));
+    }
     await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
     await writeFile(path.join(output,'desktop.png'),(await window.webContents.capturePage()).toPNG());
     if(state.toc) {
@@ -161,7 +304,7 @@ async function start() {
       await writeFile(path.join(output,'desktop-narrow.png'),(await window.webContents.capturePage()).toPNG());
       await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
     }
-    app.exit(state.rendered?.includes('功能概述') && state.sync==='发布稿已同步' && !state.errors.length && !state.overflow && (!state.toc || (state.toc.passed && !state.toc.narrowOverflow)) && (!state.editor || state.editor.passed) ? 0 : 1);
+    app.exit(state.rendered?.includes('功能概述') && state.sync==='发布稿已同步' && !state.errors.length && !state.overflow && (!state.toc || (state.toc.passed && !state.toc.narrowOverflow)) && (!state.editor || state.editor.passed) && (!state.updates || state.updates.passed) ? 0 : 1);
   }
 }
 app.on('window-all-closed',()=>app.quit());

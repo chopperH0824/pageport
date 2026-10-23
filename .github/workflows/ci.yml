@@ -1,5 +1,5 @@
 name: CI
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
@@ -21,3 +21,47 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - run: npm ci
+      - run: npm run prepare:windows
+      - name: Test with native Windows Mark
+        shell: pwsh
+        run: |
+          $env:MARK_BIN = "$pwd/resources/mark.exe"
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - run: npm run build
+      - name: Check development desktop
+        run: npm run smoke:desktop
+        env:
+          PAGEPORT_SMOKE_DIR: artifacts/windows-development
+      - run: npm run package:windows
+      - name: Check packaged desktop
+        run: node scripts/smoke-desktop.mjs --packaged
+        env:
+          PAGEPORT_SMOKE_DIR: artifacts/windows-packaged
+      - name: Install, verify and uninstall in isolated location
+        run: npm run test:windows-installer
+        env:
+          PAGEPORT_SMOKE_DIR: artifacts/windows-installed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pageport-windows-x64
+          path: release/*-setup.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-checks
+          path: artifacts/windows-*
