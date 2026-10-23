@@ -1,0 +1,47 @@
+{
+  "product": "PagePort",
+  "version": "0.4.1",
+  "releaseDate": "2026-10-23",
+  "engine": "Mark 16.22.0 Built-in",
+  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.4.1",
+  "githubRepoUrl": "https://github.com/chopperH0824/pageport",
+  "highlights": [
+    "编辑区和发布预览增加左右留白，窄窗口自动适配。",
+    "新增设置入口，集中管理软件更新、示例文档与发布记录。",
+    "更新检测使用刷新图标，发现新版本时显示提示圆点。",
+    "保留 macOS 与 Windows 的导入、原生宏、备份与版本冲突保护。",
+    "下载后校验 SHA-256，由你确认安装，不静默重启。"
+  ],
+  "assets": [
+    {
+      "id": "mac",
+      "os": "macOS",
+      "arch": "arm64",
+      "label": "macOS",
+      "detail": "Apple Silicon · macOS 13+",
+      "filename": "PagePort-0.4.1-arm64.dmg",
+      "latestAlias": "PagePort-latest-arm64.dmg",
+      "sizeBytes": 163636640,
+      "sizeFormatted": "156.1 MB",
+      "sha256": "806d176b9db74d332406d029b2d863c4007dedda98874aa4dc369798c93d8972",
+      "directDownloadUrl": "/downloads/PagePort-0.4.1-arm64.dmg",
+      "versionedDownloadUrl": "/downloads/PagePort-0.4.1-arm64.dmg",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.4.1/PagePort-0.4.1-arm64.dmg"
+    },
+    {
+      "id": "windows",
+      "os": "Windows",
+      "arch": "x64",
+      "label": "Windows",
+      "detail": "Windows 10/11 x64",
+      "filename": "PagePort-0.4.1-x64-setup.exe",
+      "latestAlias": "PagePort-latest-x64-setup.exe",
+      "sizeBytes": 135290207,
+      "sizeFormatted": "129.0 MB",
+      "sha256": "05a4b02eb766b3ab099e9c0b51a873f1407bbfb7cce13587d119ac03f5763036",
+      "directDownloadUrl": "/downloads/PagePort-0.4.1-x64-setup.exe",
+      "versionedDownloadUrl": "/downloads/PagePort-0.4.1-x64-setup.exe",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.4.1/PagePort-0.4.1-x64-setup.exe"
+    }
+  ]
+}

@@ -4,6 +4,10 @@
 
 Mac 和 Windows 上的本地 Confluence 文档发布工具。
 
+官网与安装包：[pageport.chopperh.me](https://pageport.chopperh.me)。
+选择 macOS 或 Windows 后，使用同一个下载按钮获取对应安装包；
+页面同时提供版本、文件大小与 SHA-256，GitHub Releases 可作为备选下载源。
+
 PagePort 是基于 [Mark](https://github.com/kovetskiy/mark) 的本地文档发布台：
 导入 Markdown、HTML、Word 或纯文本，核对近似预览，再检查目标页面、备份和发布。
 它面向支持 REST API 与账号密码认证的 Confluence Server / Data Center。
@@ -38,7 +42,7 @@ Windows 支持 Markdown、HTML、DOCX、TXT、Confluence 网页导出的 Word，
 ## 检查更新
 
 安装 0.4.0 后，启动约 10 秒及运行期间每 6 小时检查一次公开 GitHub 最新正式 Release。
-也可使用应用菜单“PagePort → 检查更新…”或右上角下载图标。
+也可使用应用菜单“PagePort → 检查更新…”或右上角“设置 → 软件更新”。
 后台检查只显示新版本标记，不弹窗打断编辑；网络失败不影响工作。
 更新窗口可关闭自动检查，手动检查仍然可用。
 
