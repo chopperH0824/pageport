@@ -1,4 +1,5 @@
 !include "FileFunc.nsh"
+!include "LogicLib.nsh"
 
 !ifndef BUILD_UNINSTALLER
 Function PagePortNormalizeDirectory
