@@ -22,7 +22,7 @@ export default function UpdatePanel({ onRequestOpen, onAvailability }) {
     catch { setState(value => ({ ...value, error: '更新操作未完成，请重试。' })); }
   };
   return <div className="update-content">
-        <img src="/favicon.svg" width="40" height="40" alt="PagePort"/>
+        <img src="/brand.png" width="48" height="48" alt="PagePort"/>
         <h2 id="update-heading">{checking ? '正在检查更新' : available ? `PagePort ${state.version}` : state.status === 'current' ? '已是最新版本' : '检查更新'}</h2>
         <p className="modal-subtitle">当前版本 {state.currentVersion}{state.publishedAt && available ? ` · 发布于 ${new Date(state.publishedAt).toLocaleDateString('zh-CN')}` : ''}</p>
         {available && state.notes && <pre className="update-notes">{state.notes}</pre>}

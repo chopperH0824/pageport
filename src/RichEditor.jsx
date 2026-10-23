@@ -11,7 +11,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import Highlight from '@tiptap/extension-highlight';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
-import { TextStyle, Color } from '@tiptap/extension-text-style';
+import { TextStyle, Color, FontSize } from '@tiptap/extension-text-style';
 import {
   Undo2, Redo2, Bold, Italic, Underline, Strikethrough, Highlighter, Code,
   List, ListOrdered, ListTodo, Quote, SquareCode, Minus, Link2, Unlink,
@@ -24,12 +24,13 @@ import {
 import { toMarkdown } from './markdown.js';
 import { TableOfContents } from './TableOfContents.jsx';
 import {
-  Indent, Panel, Status, SearchReplace, PANEL_TYPES, STATUS_COLORS,
+  Indent, Panel, Status, MissingImage, SearchReplace, PANEL_TYPES, STATUS_COLORS,
   getSearch, updateSearch, stepSearch, replaceMatches, countWords,
   ConfluenceTable, ConfluenceTableCell, ConfluenceTableHeader,
 } from './editor-extensions.js';
 import './rich-editor.css';
 import { shortcutLabel } from './platform.js';
+import { normalizeClipboardHtml } from '../server/online-document.js';
 
 const TEXT_COLORS=[
   {value:'#172b4d',label:'深灰'},{value:'#97a0af',label:'浅灰'},{value:'#c0392b',label:'红色'},{value:'#d35400',label:'橙色'},
@@ -77,6 +78,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
   const [textColor,setTextColor]=useState('#c0392b'), [highlightColor,setHighlightColor]=useState('#fff3a3');
   const [painter,setPainter]=useState(null), [status,setStatus]=useState({text:'进行中',color:'blue'});
   const [replacement,setReplacement]=useState('');
+  const [toolModule,setToolModule]=useState('common');
   const imageInput=useRef(), findInput=useRef(), callbacks=useRef({}), painterRef=useRef(null);
   const loadedVersion=useRef(contentVersion);
   callbacks.current={onChange,onError,onOutline};
@@ -109,7 +111,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
       TaskList,TaskItem.configure({nested:true}),
       TextAlign.configure({types:['heading','paragraph']}),
       Highlight.configure({multicolor:true}),Subscript,Superscript,
-      TextStyle,Color,Indent,Panel,Status,SearchReplace,
+      TextStyle,Color,FontSize,Indent,Panel,Status,MissingImage,SearchReplace,
       TableOfContents,
     ],
     content,
@@ -117,6 +119,15 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
     editorProps:{
       attributes:{class:'prose-editor','aria-label':'文档可视化编辑器',role:'textbox','aria-multiline':'true',spellcheck:'false'},
       handlePaste:(_view,event)=>{
+        if(disabled)return true;
+        const html=event.clipboardData?.getData('text/html');
+        if(html) {
+          event.preventDefault();
+          const normalized=normalizeClipboardHtml(html);
+          editor.chain().focus().insertContent(normalized.html).run();
+          if(normalized.warnings.length)callbacks.current.onError(normalized.warnings.join(' '));
+          return true;
+        }
         const files=[...(event.clipboardData?.files || [])].filter(file=>file.type.startsWith('image/'));
         if(!files.length)return false;
         if(disabled)return true;
@@ -145,6 +156,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
       panel:e.isActive('panel')?e.getAttributes('panel').type:'',
       status:e.isActive('status')?e.getAttributes('status'):null,
       color:e.getAttributes('textStyle').color || '',highlightColor:e.getAttributes('highlight').color || '',
+      fontSize:e.getAttributes('textStyle').fontSize || '',
       heading:e.getAttributes('heading').level || 0,align:e.getAttributes('paragraph').textAlign || e.getAttributes('heading').textAlign || 'left',
       canUndo:e.can().undo(),canRedo:e.can().redo(),canMerge:e.can().mergeCells(),canSplit:e.can().splitCell(),
       canIndent:e.can().indent(),canOutdent:e.can().outdent(),
@@ -235,7 +247,16 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
   const search=state.search || {};
   const off=disabled;
   return <div className={`rich-editor ${painter?'painting':''}`}>
-    <div className="format-toolbar" role="toolbar" aria-label="文字格式">
+    <div className="editor-modules" role="tablist" aria-label="编辑工具模块" onKeyDown={e=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+      e.preventDefault();
+      const buttons=[...e.currentTarget.querySelectorAll('[role="tab"]')], index=buttons.indexOf(e.target);
+      const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(index+(e.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;
+      buttons[next].click();buttons[next].focus();
+    }}>
+      {[['common','常用'],['insert','插入'],['layout','排版'],['all','全部工具']].map(([value,label])=><button type="button" key={value} role="tab" id={`tools-${value}`} aria-selected={toolModule===value} aria-controls="format-tools" tabIndex={toolModule===value?0:-1} onMouseDown={e=>e.preventDefault()} onClick={()=>setToolModule(value)}>{label}</button>)}
+    </div>
+    <div id="format-tools" className={`format-toolbar module-${toolModule}`} role="tabpanel" aria-labelledby={`tools-${toolModule}`}>
       <div className="format-group">
         <Tool label="撤销 (⌘Z)" icon={Undo2} disabled={off || !state.canUndo} onClick={()=>editor.chain().focus().undo().run()}/>
         <Tool label="重做 (⇧⌘Z)" icon={Redo2} disabled={off || !state.canRedo} onClick={()=>editor.chain().focus().redo().run()}/>
@@ -245,6 +266,9 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
       <div className="format-group">
         <select aria-label="段落样式" value={state.heading} disabled={off} onChange={e=>{const level=Number(e.target.value);level?editor.chain().focus().setHeading({level}).run():editor.chain().focus().setParagraph().run();}}>
           <option value="0">正文</option>{[1,2,3,4,5,6].map(n=><option key={n} value={n}>标题 {n}</option>)}
+        </select>
+        <select aria-label="字号" value={state.fontSize} disabled={off} onChange={e=>e.target.value?run(c=>c.setFontSize(e.target.value)):run(c=>c.unsetFontSize())}>
+          <option value="">默认字号</option>{[10,12,14,16,18,20,24,28,32,40,48].map(size=><option key={size} value={`${size}px`}>{size} px</option>)}
         </select>
       </div>
       <div className="format-group">
@@ -334,6 +358,12 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
       <Tool label="表头行" icon={PanelTop} disabled={off} onClick={()=>run(c=>c.toggleHeaderRow())}/>
       <Tool label="表头列" icon={PanelLeft} disabled={off} onClick={()=>run(c=>c.toggleHeaderColumn())}/>
       <Tool label="删除表格" icon={Trash2} disabled={off} onClick={()=>run(c=>c.deleteTable())}/>
+      <label className="cell-colour">单元格底色<input type="color" aria-label="单元格底色" disabled={off} defaultValue="#ffffff" onChange={e=>{
+        const current=editor.getAttributes(editor.isActive('tableHeader')?'tableHeader':'tableCell').cellStyle || '';
+        const styles=current.split(';').filter(style=>style.trim() && !/^\s*background-color\s*:/i.test(style));
+        run(c=>c.setCellAttribute('cellStyle',[...styles,`background-color: ${e.target.value}`].join(';')));
+      }}/></label>
+      <button type="button" disabled={off} onMouseDown={e=>e.preventDefault()} onClick={()=>run(c=>c.setCellAttribute('cellStyle',null))}>清除单元格样式</button>
     </div>}
     {state.codeBlock && <div className="code-context"><SquareCode size={14}/><label htmlFor="code-language">代码语言</label><select id="code-language" value={editor.getAttributes('codeBlock').language || ''} disabled={off} onChange={e=>editor.chain().focus().updateAttributes('codeBlock',{language:e.target.value || null}).run()}>{['','javascript','typescript','json','python','bash','html','css','sql','yaml','java','go','rust','text'].map(language=><option value={language} key={language}>{language || '纯文本'}</option>)}</select></div>}
     <input ref={imageInput} className="hidden" type="file" accept=".png,.jpg,.jpeg,.gif,.webp" multiple onChange={e=>{insertImages(editor,[...e.target.files]);e.target.value='';}}/>

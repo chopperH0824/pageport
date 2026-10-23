@@ -24,11 +24,11 @@ const latestJsonPath = path.join(siteDir, "downloads", "latest.json");
 const indexPath = path.join(siteDir, "index.html");
 
 const HIGHLIGHTS = [
-  "编辑区和发布预览增加左右留白，窄窗口自动适配。",
-  "新增设置入口，集中管理软件更新、示例文档与发布记录。",
-  "更新检测使用刷新图标，发现新版本时显示提示圆点。",
-  "保留 macOS 与 Windows 的导入、原生宏、备份与版本冲突保护。",
-  "下载后校验 SHA-256，由你确认安装，不静默重启。"
+  "全新双页之桥图标，统一 macOS、Windows、应用工作区与官网品牌。",
+  "蓝色编辑区、青绿发布区与白色正文，优化工具栏、目录及设置的视觉层次。",
+  "重做下载页，提供清晰的系统选择、共用下载按钮和随系统切换的安装包摘要。",
+  "保留导入、原生宏、自动备份、版本冲突保护与发布回读核验。",
+  "下载后校验 SHA-256，由你确认安装，不静默重启或清除运行数据。"
 ];
 
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));

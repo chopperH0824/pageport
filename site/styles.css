@@ -1,17 +1,19 @@
 :root {
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --bg-page: #f6f8fc;
+  --bg-page: #f7f9fd;
   --bg-surface: #ffffff;
   --bg-subtle: #f0f4ff;
   --bg-dark: #20232b;
   --ink-primary: #1f2329;
   --ink-secondary: #515967;
   --ink-muted: #646d7c;
-  --teal-600: #3370ff;
-  --teal-700: #245bdb;
-  --teal-50: #f0f4ff;
-  --teal-100: #dce6ff;
+  --teal-600: #2463eb;
+  --teal-700: #1c50ca;
+  --teal-50: #edf3ff;
+  --teal-100: #dce7ff;
+  --mint: #008a78;
+  --mint-soft: #e9f8f3;
   --confluence-blue: #3668a6;
   --confluence-bg: #ebf2fa;
   --amber-600: #b37d40;
@@ -85,7 +87,7 @@ pre {
   position: sticky;
   top: 0;
   z-index: 60;
-  height: 76px;
+  height: 72px;
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid #f0f2f5;
@@ -110,9 +112,9 @@ pre {
 }
 
 .brand-link img {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
 }
 
 .version-pill {
@@ -211,22 +213,22 @@ pre {
 /* Download-first layout, with the product workflow visible below the fold. */
 .hero-band {
   position: relative;
-  padding: 24px 0 80px;
-  background: #ffffff;
+  padding: 16px 0 72px;
+  background: #f8fbff;
 }
 
 .download-subnav {
   display: flex;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
   width: fit-content;
   max-width: 100%;
-  margin: 0 auto 20px;
+  margin: 0 auto 28px;
   padding: 6px;
   background: #fff;
-  border: 1px solid #edf0f7;
+  border: 1px solid #f0f3f9;
   border-radius: 8px;
-  box-shadow: 0 6px 28px #233c7410;
+  box-shadow: 0 4px 20px #284b8610;
 }
 
 .download-subnav a {
@@ -244,7 +246,7 @@ pre {
 
 .hero-top {
   max-width: 920px;
-  margin: 0 auto 16px;
+  margin: 0 auto 24px;
   text-align: center;
 }
 
@@ -270,12 +272,13 @@ pre {
 
 .hero-title {
   margin: 0;
-  font-size: 48px;
+  font-size: 46px;
   line-height: 1.2;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: 0;
   color: var(--ink-primary);
 }
+.title-suffix { display: inline-block; }
 
 .hero-subtitle {
   margin: 14px auto 0;
@@ -286,8 +289,8 @@ pre {
 }
 
 .download-panel {
-  margin: 24px auto 0;
-  max-width: 536px;
+  margin: 26px auto 0;
+  max-width: 580px;
   text-align: center;
 }
 
@@ -303,23 +306,24 @@ pre {
 .download-platform {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 24px;
 }
 
 .platform-choice {
   position: relative;
-  min-height: 120px;
+  min-height: 128px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid var(--border-color);
+  border: 1px solid #edf1f8;
   border-radius: 8px;
   font-weight: 650;
   color: var(--ink-secondary);
   background: #fff;
   transition: border-color .16s, background-color .16s, box-shadow .16s;
+  box-shadow: 0 6px 22px #29529c08;
 }
 
 .platform-choice span {
@@ -332,9 +336,9 @@ pre {
 .platform-choice:hover { border-color: #8cafff; }
 .platform-choice.is-on {
   color: var(--teal-700);
-  background: #f7f9ff;
-  border-color: var(--teal-600);
-  box-shadow: 0 4px 16px #3370ff0c;
+  background: #fff;
+  border-color: #8dadf4;
+  box-shadow: 0 6px 24px #2463eb12, inset 0 -3px var(--teal-600);
 }
 
 .platform-choice.is-on::after {
@@ -348,13 +352,19 @@ pre {
   background: var(--teal-600);
 }
 
+.platform-choice[data-download-os="windows"].is-on {
+  border-color: #7ccdbb;
+  box-shadow: 0 6px 24px #008a7810, inset 0 -3px var(--mint);
+}
+.platform-choice[data-download-os="windows"].is-on::after { background: var(--mint); }
+
 .download-row {
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 20px 0 0;
+  padding: 16px 0 0;
 }
 
 #download-installer {
@@ -436,7 +446,7 @@ pre {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .hero-meta-strip {
@@ -1172,8 +1182,8 @@ pre {
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  background: var(--teal-50);
-  color: var(--teal-600);
+  background: var(--mint-soft);
+  color: var(--mint);
   display: grid;
   place-items: center;
 }
@@ -1200,7 +1210,7 @@ pre {
 }
 
 .stage-step-dot.done {
-  background: var(--teal-600);
+  background: var(--mint);
   color: #ffffff;
 }
 
@@ -1283,7 +1293,7 @@ pre {
   margin-top: auto;
   height: 36px;
   border-radius: 5px;
-  background: var(--teal-600);
+  background: var(--mint);
   color: #ffffff;
   font-size: 12px;
   font-weight: 600;
@@ -1572,8 +1582,8 @@ pre {
   width: 38px;
   height: 38px;
   border-radius: var(--radius-md);
-  background: var(--teal-50);
-  color: var(--teal-600);
+  background: var(--mint-soft);
+  color: var(--mint);
   display: grid;
   place-items: center;
 }
@@ -1664,8 +1674,8 @@ pre {
 }
 
 .status-chip.ok {
-  background: var(--teal-50);
-  color: var(--teal-700);
+  background: var(--mint-soft);
+  color: var(--mint);
 }
 
 .status-chip.guard {
@@ -2124,9 +2134,10 @@ pre {
   .hero-title { font-size: 29px; }
   .hero-compatibility { font-size: 12px; }
   .hero-compatibility span { margin: 0 3px; }
-  .hero-top { margin-bottom: 48px; }
+  .hero-top { margin-bottom: 20px; }
+  .hero-meta-strip { display: none; }
   .download-platform { gap: 10px; }
-  .platform-choice { min-height: 140px; }
+  .platform-choice { min-height: 128px; }
   .platform-choice strong { font-size: 14px; }
   .platform-choice span { font-size: 10px; }
   .demo-heading { align-items: flex-start; }
@@ -2159,6 +2170,11 @@ pre {
   .nav-actions { gap: 2px; }
   .nav-inner { gap: 8px; }
   .nav-actions .btn-ghost { padding: 0 6px; }
+}
+
+@media (max-height: 760px) and (min-width: 821px) {
+  .hero-meta-strip { display: none; }
+  .hero-subtitle { margin-top: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,6 +1,6 @@
 # PagePort
 
-<img src="public/favicon.svg" width="56" alt="PagePort logo">
+<img src="public/brand.png" width="56" alt="PagePort logo">
 
 Mac 和 Windows 上的本地 Confluence 文档发布工具。
 
@@ -35,7 +35,7 @@ PagePort 是基于 [Mark](https://github.com/kovetskiy/mark) 的本地文档发�
 请核对来源和发布页摘要，不要关闭系统安全保护。
 
 Windows 支持 Markdown、HTML、DOCX、TXT、Confluence 网页导出的 Word，
-以及实际为 DOCX 结构的 `.doc/.wps`。真正的旧二进制 `.doc/.wps` 需先在 Word/WPS
+以及实际为 DOCX 结构的 `.doc`。真正的旧二进制 `.doc` 需先在 Word
 另存为 `.docx`；Mac 继续通过系统 `textutil` 转换。Windows 不要求安装 Go、Node 或 Word。
 快捷键使用 `Ctrl`，Mac 使用 `Cmd`。
 
@@ -60,7 +60,7 @@ Windows 支持 Markdown、HTML、DOCX、TXT、Confluence 网页导出的 Word，
 ## 工作流
 
 1. 打开 PagePort，进入本地工作区。
-2. 导入 `.md` / `.markdown` / `.html` / `.htm` / `.docx` / `.doc` / `.wps` / `.txt`（旧格式限制见上）。
+2. 导入 `.md` / `.markdown` / `.html` / `.htm` / `.docx` / `.doc` / `.txt`（旧格式限制见上）。
 3. Markdown 引用本地图片时，同时添加对应 PNG、JPEG、GIF 或 WebP 文件。
 4. 在“编辑预览”中直接修改，或切换 Markdown 源文件。修改自动转换为发布稿；等待“发布稿已同步”，核对“发布预览”与检查项。
 5. 输入已有页面的完整 HTTPS 链接、Confluence 账号和密码。
@@ -73,6 +73,14 @@ Windows 支持 Markdown、HTML、DOCX、TXT、Confluence 网页导出的 Word，
 
 ## 格式边界
 
+### 钉钉在线文档
+
+在有权限的钉钉文档中复制正文，粘贴至 PagePort 空白工作区或编辑器；
+也可导出 DOCX / Markdown 后导入。支持识别导出内容中明确标记的提示块、状态与任务，
+并保留支持的表格跨度和底色。不同版本未保留语义的专有组件需手动核对。
+不读取登录态、不通过分享链接抓取，不自动下载私有图片。Markdown 配套图片应同时导入。
+公式、流程图、评论和附件不保证还原，请先在独立测试页验证。
+
 | 内容 | 行为 |
 | --- | --- |
 | 标题、强调、列表、链接、普通表格 | 转换并保留支持的结构 |
@@ -83,7 +91,7 @@ Windows 支持 Markdown、HTML、DOCX、TXT、Confluence 网页导出的 Word，
 | Confluence 网页导出的 Word | 还原支持的表格、底色、勾选与原图 URL；原图仍可能要求站点认证，不代表图片已归档 |
 | Word 字体、分页、浮动布局、修订和批注 | 不保证还原，应核对转换结果 |
 | HTML 脚本、样式、表单、iframe、专有宏 | 清理，不执行 |
-| 旧版二进制 `.doc/.wps` | Mac 使用系统转换，Windows 需先另存为 DOCX |
+| 旧版二进制 `.doc` | Mac 使用系统转换，Windows 需先另存为 DOCX |
 | PDF、PPT、Excel | 暂不支持，不伪装成成功转换 |
 
 预览是近似样式，不是 Confluence 官方渲染器。不承诺任意格式逐像素无损。

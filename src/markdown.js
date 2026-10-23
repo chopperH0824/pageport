@@ -25,6 +25,10 @@ export function createSerializer() {
     filter:node=>node.nodeName==='SPAN' && node.hasAttribute('data-pageport-status'),
     replacement:(_content,node)=>`<span data-pageport-status="${escapeHtml(node.getAttribute('data-pageport-status'))}">${escapeHtml(service.escape(node.textContent))}</span>`,
   });
+  service.addRule('missingImage', {
+    filter:node=>node.nodeName==='SPAN' && node.hasAttribute('data-pageport-missing-image'),
+    replacement:(_content,node)=>`<span data-pageport-missing-image="${escapeHtml(node.getAttribute('data-pageport-missing-image'))}">${escapeHtml(node.textContent)}</span>`,
+  });
   // Wrap the converted content rather than copying outerHTML, so Markdown characters stay escaped.
   service.addRule('extendedInline', {
     filter:node=>['U','MARK','SUB','SUP'].includes(node.nodeName) || (node.nodeName==='SPAN' && node.hasAttribute('style')),

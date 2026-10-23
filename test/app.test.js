@@ -221,9 +221,7 @@ test('WPS-style headings, text boxes, Chinese numbering and unknown images stay 
   assert.match(imageText,/未转换的图片/);
   assert.match(imageDoc.warnings.join('\n'),/图片格式无法放入页面/);
   const wps=await officeFile({document:`<w:document xmlns:w="${officeXml}"><w:body><w:p><w:r><w:t>金山正文</w:t></w:r></w:p></w:body></w:document>`},'方案.wps');
-  const wpsDoc=await convertDocument(wps);
-  assert.match(load(wpsDoc.storage,{xmlMode:true}).text(),/金山正文/);
-  assert.match(wpsDoc.warnings.join('\n'),/WPS/);
+  await assert.rejects(()=>convertDocument(wps),/另存为 DOCX/);
 });
 
 test('legacy .doc files convert on macOS',async(t)=>{

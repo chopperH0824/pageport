@@ -111,6 +111,16 @@ export const Status=Node.create({
   renderText:({node})=>node.attrs.text,
 });
 
+export const MissingImage=Node.create({
+  name:'missingImage',group:'inline',inline:true,atom:true,
+  addAttributes:()=>({
+    label:{default:'在线图片',parseHTML:element=>(element.getAttribute('data-pageport-missing-image') || '在线图片').slice(0,120),renderHTML:attrs=>({'data-pageport-missing-image':attrs.label})},
+  }),
+  parseHTML:()=>[{tag:'span[data-pageport-missing-image]'}],
+  renderHTML:({node,HTMLAttributes})=>['span',HTMLAttributes,`[待补充图片：${node.attrs.label}]`],
+  renderText:({node})=>`[待补充图片：${node.attrs.label}]`,
+});
+
 export const searchKey=new PluginKey('pageportSearch');
 
 function findMatches(doc,term,caseSensitive) {

@@ -13,6 +13,8 @@ import { fileTypeFromBuffer } from 'file-type';
 import yauzl from 'yauzl';
 import { adaptOfficePackage, looksLikeDocx } from './office-adapt.js';
 import { extractConfluenceExport } from './confluence-export.js';
+import { normalizeOnlineDocument } from './online-document.js';
+import { restoreOfficeDetails } from './office-details.js';
 
 const exec = promisify(execFile);
 const md = new MarkdownIt({ html: true, linkify: true, breaks: false }).use(taskLists);
@@ -54,7 +56,7 @@ export function cleanHtml(html) {
       ul:['data-type'],li:['data-type','data-checked'],code:['class'],
       td: ['colspan','rowspan','style'], th: ['colspan','rowspan','scope','style'],
       col: ['style','span'], colgroup: ['span'], table: ['style'],
-      ol: ['start'], span: ['data-image-ref','data-pageport-status','style','data-confluence-emoticon','data-confluence-image','data-height'], mark: ['data-color','style'],
+      ol: ['start'], span: ['data-image-ref','data-pageport-status','data-pageport-missing-image','style','data-confluence-emoticon','data-confluence-image','data-height'], mark: ['data-color','style'],
       div:['data-pageport-toc','data-min-level','data-max-level','data-pageport-panel'],
     },
     allowedClasses:{code:[/^language-[a-zA-Z0-9_-]+$/]},
@@ -62,7 +64,7 @@ export function cleanHtml(html) {
       '*':{'text-align':blockStyle['text-align']},
       p:blockStyle, h1:blockStyle, h2:blockStyle, h3:blockStyle, h4:blockStyle, h5:blockStyle, h6:blockStyle,
       td:cellStyle, th:cellStyle, col:{width:cellStyle.width}, table:{width:cellStyle.width},
-      span:{color:colorValue}, mark:{'background-color':colorValue, color:[/^inherit$/]},
+      span:{color:colorValue,'font-size':[/^(?:10|12|14|16|18|20|24|28|32|40|48)px$/]}, mark:{'background-color':colorValue, color:[/^inherit$/]},
     },
     transformTags:{mark:(tagName,attribs)=>{
       const {['data-color']:color,...rest}=attribs;
@@ -97,7 +99,7 @@ async function checkDocx(buffer) {
 }
 
 async function convertLegacyOffice(buffer, scratchRoot) {
-  if (process.platform !== 'darwin') throw new AppError('旧版 .doc / .wps 需要在 macOS 上转换。请先另存为 .docx。');
+  if (process.platform !== 'darwin') throw new AppError('旧版 .doc 需要在 macOS 上转换。请先另存为 .docx。');
   const dir = await mkdtemp(path.join(scratchRoot || tmpdir(), 'pageport-doc-'));
   const rtf = buffer.slice(0, 5).toString('latin1').startsWith('{\\rtf');
   try {
@@ -107,16 +109,16 @@ async function convertLegacyOffice(buffer, scratchRoot) {
     await exec('/usr/bin/textutil', ['-convert', 'docx', '-output', output, input], { timeout: 15000, maxBuffer: 1024 * 1024 });
     return await readFile(output);
   } catch {
-    throw new AppError('无法转换这份旧版 Word 或 WPS 文件。请在 WPS 中另存为 .docx 后再导入。');
+    throw new AppError('无法转换这份旧版 Word 文件。请先另存为 .docx 后再导入。');
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
 
 async function prepareOffice(name, buffer, scratchRoot, warnings) {
   const ext = path.extname(name).toLowerCase();
   let current = buffer;
-  const packaged = ext === '.docx' || ((ext === '.doc' || ext === '.wps') && await looksLikeDocx(buffer));
-  if (!packaged && (ext === '.doc' || ext === '.wps')) current = await convertLegacyOffice(buffer, scratchRoot);
-  else if (ext !== '.docx' && ext !== '.doc' && ext !== '.wps') return null;
+  const packaged = ext === '.docx' || (ext === '.doc' && await looksLikeDocx(buffer));
+  if (!packaged && ext === '.doc') current = await convertLegacyOffice(buffer, scratchRoot);
+  else if (ext !== '.docx' && ext !== '.doc') return null;
   await checkDocx(current);
   let notes = [];
   try {
@@ -126,7 +128,7 @@ async function prepareOffice(name, buffer, scratchRoot, warnings) {
   } catch {
     warnings.push('部分 Word 兼容处理未完成，已按原始结构继续转换。');
   }
-  if (ext === '.doc' || ext === '.wps') warnings.push('旧版 Word 或 WPS 已先按 .docx 读取。域、批注和部分排版可能变化，请核对预览。');
+  if (ext === '.doc') warnings.push('旧版 Word 已先按 .docx 读取。域、批注和部分排版可能变化，请核对预览。');
   warnings.push(...notes);
   return current;
 }
@@ -153,6 +155,7 @@ async function compileMark(html, scratchRoot = tmpdir()) {
 
 export async function convertDocument(file, imageFiles = [], scratchRoot) {
   const ext = path.extname(file.originalname).toLowerCase();
+  if (!['.md','.markdown','.html','.htm','.docx','.doc','.txt'].includes(ext)) throw new AppError('该格式暂不支持。支持 .md、.markdown、.html、.htm、.docx、.doc 和 .txt；请将其他格式另存为 DOCX。');
   const warnings = [], blockers = [], assets = [];
   let html, source = '', title = path.basename(file.originalname, ext);
   const images = new Map();
@@ -184,6 +187,15 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
     let skippedImages = 0;
     const result = await mammoth.convertToHtml({ buffer: office }, {
       externalFileAccess: false,
+      styleMap: [
+        "p[style-name='Info'] => div.dingtalk-callout:fresh",
+        "p[style-name='Warning'] => div.pageport-warning:fresh",
+        "p[style-name='Success'] => div.pageport-success:fresh",
+        "p[style-name='提示'] => div.dingtalk-callout:fresh",
+        "p[style-name='警告'] => div.pageport-warning:fresh",
+        "r[style-name='Status'] => span.dingtalk-status",
+        "r[style-name='状态'] => span.dingtalk-status",
+      ],
       convertImage: mammoth.images.imgElement(async image => {
         const bytes = await image.read();
         const type = await fileTypeFromBuffer(bytes);
@@ -201,7 +213,7 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
         }
       }),
     });
-    html = result.value;
+    html = await restoreOfficeDetails(office,result.value);
     warnings.push('Word 将保留可转换的内容结构；字体、分页、浮动布局、批注和修订不保证还原。请逐项核对预览。');
     if (skippedImages) warnings.push(`${skippedImages} 张图片格式无法放入页面，已在正文中逐张标出。`);
     if (result.messages.length) warnings.push(`Word 转换器报告了 ${result.messages.length} 项兼容性提示。`);
@@ -220,10 +232,16 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
       warnings.push('HTML 保留支持的表格与内容结构；脚本、样式表、表单、嵌入页面及不受支持的标签会被清理。');
     } else if (ext === '.txt') {
       html = source.split(/\n\s*\n/).map(text => `<p>${escape(text).replaceAll('\n','<br />')}</p>`).join('\n');
-    } else throw new AppError('支持 .md、.markdown、.html、.htm、.docx、.doc、.wps 和 .txt；PDF 暂不支持。');
+    } else throw new AppError('支持 .md、.markdown、.html、.htm、.docx、.doc 和 .txt；PDF 暂不支持。');
   }
+  const normalized=normalizeOnlineDocument(html);
+  html=normalized.html;
   // Resolve images before sanitization strips unsafe or remote image schemes.
   const raw = load(html);
+  raw('span[data-pageport-missing-image]').each((_,node)=>{
+    const label=raw(node).attr('data-pageport-missing-image') || '在线图片';
+    blockers.push(`图片「${label}」尚未归档。请删除占位标记并插入本地图片后再发布。`);
+  });
   raw('div[data-pageport-toc="true"]').each((_,node)=>{
     const item=raw(node);
     const min=Math.min(6,Math.max(1,Number.parseInt(item.attr('data-min-level'),10) || 1));

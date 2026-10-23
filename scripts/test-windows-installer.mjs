@@ -12,8 +12,12 @@ const asar = require('@electron/asar');
 try {
   const version = JSON.parse(await readFile('package.json', 'utf8')).version;
   const installer = path.resolve(`release/PagePort-${version}-x64-setup.exe`);
-  const target = path.join(root, 'installed');
+  const parent = path.join(root, 'installed');
+  const target = path.join(parent, 'PagePort');
+  execFileSync(installer, ['/S', `/D=${parent}`], { timeout: 120000, stdio: 'inherit' });
+  if (!(await readdir(parent)).includes('PagePort')) throw new Error('Installer must create its own PagePort directory.');
   execFileSync(installer, ['/S', `/D=${target}`], { timeout: 120000, stdio: 'inherit' });
+  if ((await readdir(target)).includes('PagePort')) throw new Error('Installer duplicated the PagePort directory.');
   const unpacked = await readFile('release/win-unpacked/resources/app.asar');
   const installed = await readFile(path.join(target, 'resources/app.asar'));
   const sha = bytes => createHash('sha256').update(bytes).digest('hex');

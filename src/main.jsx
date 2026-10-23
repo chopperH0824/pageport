@@ -10,10 +10,37 @@ import './style.css';
 import RichEditor from './RichEditor.jsx';
 import { toMarkdown } from './markdown.js';
 import SettingsPanel from './SettingsPanel.jsx';
+import './brand-theme.css';
 
 const demo = `# PagePort 格式示例
 
-公开的虚构格式示例。
+这是一份公开的虚构格式示例，不包含业务资料。
+
+## 功能概述
+
+示例仅演示 **加粗**、*斜体* 和 [链接](https://example.com)。
+
+## 功能清单
+
+| 项目 | 状态 |
+| --- | --- |
+| 示例 A | 待确认 |
+| 示例 B | 已完成 |
+
+## 列表
+
+- 第一项
+- 第二项
+
+## 引用
+
+> 示例引用。
+
+## 代码
+
+\`\`\`json
+{"example": true}
+\`\`\`
 `;
 const previewCss = `
 *{box-sizing:border-box}html{color-scheme:light}body{margin:0;padding:24px 32px 48px;font:14px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;color:#172b4d;overflow-wrap:anywhere;background:#fff;letter-spacing:0}
@@ -223,7 +250,7 @@ function App() {
     } catch(err) { if(seq === generation.current) setError(err.message); return false; }
     finally { if(seq === generation.current) setBusy(''); }
   }
-  const loadDemo = () => convert(new File([demo],'PagePort-format-example.md',{type:'text/markdown'})).then(ok=>{if(ok){fileToken.current=null;fileHandle.current=null;}});
+  const loadDemo = () => convert(new File([demo],'PagePort 格式示例.md',{type:'text/markdown'})).then(ok=>{if(ok){fileToken.current=null;fileHandle.current=null;}});
   function closeDocument() {
     if(busy==='publish' || busy==='convert')return;
     if(dirty && !window.confirm('当前修改尚未保存到文件。关闭后这些修改会丢失，确定关闭？'))return;
@@ -280,7 +307,7 @@ function App() {
     }
     if(typeof window.showOpenFilePicker==='function') {
       try {
-        const [handle]=await window.showOpenFilePicker({multiple:false,types:[{description:'文档',accept:{'text/markdown':['.md','.markdown'],'text/html':['.html','.htm'],'text/plain':['.txt'],'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx'],'application/msword':['.doc','.wps']}}]});
+        const [handle]=await window.showOpenFilePicker({multiple:false,types:[{description:'文档',accept:{'text/markdown':['.md','.markdown'],'text/html':['.html','.htm'],'text/plain':['.txt'],'application/vnd.openxmlformats-officedocument.wordprocessingml.document':['.docx'],'application/msword':['.doc']}}]});
         const next=await handle.getFile();
         const ok=await convert(next,[],options);
         if(ok){fileHandle.current=handle;fileToken.current=null;}
@@ -331,7 +358,6 @@ function App() {
       setBoot(data); csrfRef.current = data.csrf; setCsrf(data.csrf);
     }).catch(()=>setError('无法连接服务，请刷新重试。'));
   },[]);
-  useEffect(()=>{ if(boot?.authenticated && !file) loadDemo(); },[boot?.authenticated]);
   useEffect(()=>{
     if (!plan) return;
     const update = () => setRemaining(Math.max(0,Math.ceil((plan.deadline-Date.now())/1000)));
@@ -373,7 +399,7 @@ function App() {
     }catch(err){setError(err.message);}
   }
   function chooseFiles(list) {
-    const all = [...list], doc = all.find(f=>/\.(md|markdown|html?|docx|doc|wps|txt)$/i.test(f.name));
+    const all = [...list], doc = all.find(f=>/\.(md|markdown|html?|docx|doc|txt)$/i.test(f.name));
     const pics = all.filter(f=>/\.(png|jpe?g|gif|webp)$/i.test(f.name));
     if(doc) convert(doc,pics).then(ok=>{if(ok){fileToken.current=null;fileHandle.current=null;}});
     else if(pics.length && file) {
@@ -381,7 +407,7 @@ function App() {
       if(document?.blockers.length)convert(file,nextImages);
       else {setImages(nextImages);draft.current.images=nextImages;changeDraft(source,'source');}
     }
-    else setError('请选择 Markdown、HTML、Word .docx/.doc、WPS 或纯文本，以及配套图片。');
+    else setError('请选择 Markdown、HTML、Word .docx/.doc 或纯文本，以及配套图片。');
     setSidebar(false);
   }
   const valid = !!document && !document.blockers.length && !busy && sync==='ready';
@@ -390,17 +416,25 @@ function App() {
   const hostname = boot?.hosts?.[0] || 'confluence.example.com';
   if(!boot) return <div className="loading-page"><Loader2 className="spin" size={24}/><span>正在连接 PagePort</span></div>;
   if(!boot.authenticated) return <div className="access-screen">
-    <div className="access-brand"><img src="/favicon.svg" alt="PagePort" width="44" height="44"/><span>PagePort</span></div>
+    <div className="access-brand"><img src="/brand.png" alt="PagePort" width="44" height="44"/><span>PagePort</span></div>
     <form className="access-form" onSubmit={login}><LockKeyhole size={26}/><h1>文档发布台</h1>
       <label htmlFor="access">网站访问口令</label><input id="access" type="password" value={access} onChange={e=>setAccess(e.target.value)} autoFocus autoComplete="off" required/>
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="primary" disabled={!!busy}>{busy ? <Loader2 className="spin" size={16}/> : <ArrowRight size={16}/>}进入工作区</button>
     </form><span className="access-foot">PagePort · Confluence Publisher</span>
   </div>;
-  return <div className={`app-shell ${focus?'focus-mode':''}`} onDragOver={e=>{if(e.dataTransfer.types.includes('Files')){e.preventDefault();if(!busy && !e.target.closest('.rich-editor'))setDrag(true);}}} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDrag(false);}} onDrop={e=>{if(!e.dataTransfer.files.length)return;e.preventDefault();setDrag(false);if(!busy)chooseFiles(e.dataTransfer.files);}}>
+  return <div className={`app-shell ${focus?'focus-mode':''}`} onPaste={e=>{
+    if(document || busy || e.target.closest('input,textarea,[contenteditable="true"]'))return;
+    const html=e.clipboardData.getData('text/html'), text=e.clipboardData.getData('text/plain');
+    if(!html && !text)return;
+    e.preventDefault();
+    convert(new File([html || text],html?'粘贴的文档.html':'粘贴的文档.txt')).then(ok=>{
+      if(ok){fileToken.current=null;fileHandle.current=null;setDirty(true);}
+    });
+  }} onDragOver={e=>{if(e.dataTransfer.types.includes('Files')){e.preventDefault();if(!busy && !e.target.closest('.rich-editor'))setDrag(true);}}} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget))setDrag(false);}} onDrop={e=>{if(!e.dataTransfer.files.length)return;e.preventDefault();setDrag(false);if(!busy)chooseFiles(e.dataTransfer.files);}}>
     <header className="topbar">
       <button className="mobile-menu icon-button" title="打开文档栏" aria-label="打开文档栏" onClick={()=>setSidebar(!sidebar)}><Files size={20}/></button>
-      <a href="/" className="brand"><img src="/favicon.svg" alt="" width="32" height="32"/><span>PagePort</span><span className="brand-divider"/><span className="brand-sub">文档发布台</span></a>
+      <a href="/" className="brand"><img src="/brand.png" alt="" width="32" height="32"/><span>PagePort</span><span className="brand-divider"/><span className="brand-sub">文档发布台</span></a>
       <nav className="top-actions"><span className="engine-status"><span className="status-dot"/>Mark 引擎</span><span className="secure-indicator" title={boot.desktop?'转换与认证均在本机运行，不经过第三方发布服务器':'凭据仅用于本次请求，不保存密码'}><ShieldCheck size={15}/>{boot.desktop?'本机运行':'安全会话'}</span>
         <SettingsPanel busy={!!busy} historyCount={history.length} onDemo={loadDemo} onHistory={()=>setShowHistory(true)}
           onLogout={async()=>{
@@ -414,7 +448,7 @@ function App() {
       <aside className={`sidebar ${sidebar?'is-open':''}`}>
         <div className="sidebar-head"><span className="overline">工作区</span><span className="sidebar-head-actions"><button className="icon-button collapse-side" title="收起文档栏，预览区变宽" aria-label="收起文档栏" onClick={()=>setLeftOpen(false)}><PanelLeftClose size={16}/></button><button className="icon-button mobile-close" title="关闭文档栏" aria-label="关闭文档栏" onClick={()=>setSidebar(false)}><PanelLeftClose size={16}/></button></span></div>
         <button className="import-button" title="导入文档。已打开的文档会在确认后被替换。" onClick={()=>importDocument()} disabled={!!busy}><Plus size={17}/>导入文档<span>+</span></button>
-        <input ref={input} type="file" className="hidden" accept=".md,.markdown,.html,.htm,.docx,.doc,.wps,.txt,.png,.jpg,.jpeg,.webp,.gif" multiple onChange={e=>{chooseFiles(e.target.files);e.target.value='';}}/>
+        <input ref={input} type="file" className="hidden" accept=".md,.markdown,.html,.htm,.docx,.doc,.txt,.png,.jpg,.jpeg,.webp,.gif" multiple onChange={e=>{chooseFiles(e.target.files);e.target.value='';}}/>
         <input ref={imageInput} type="file" className="hidden" accept=".png,.jpg,.jpeg,.webp,.gif" multiple onChange={e=>{chooseFiles(e.target.files);e.target.value='';}}/>
         <div className="section-label">当前文档<span>{file? '01':'00'}</span></div>
         {file ? <div className="file-item active"><span className="file-icon"><FileText size={18}/></span><div><strong title={file.name}>{file.name}</strong><small>{formatSize(file.size)}<span>·</span>{document?'已转换':busy==='convert'?'转换中':'待转换'}</small></div><span className="file-actions"><button className="icon-button" title="重新读取磁盘上的文件" aria-label="重新读取文件" disabled={!!busy} onClick={refreshFile}><RefreshCw size={14}/></button><button className="icon-button" title="关闭当前文档，以便编辑另一份" aria-label="关闭当前文档" disabled={busy==='publish' || busy==='convert'} onClick={closeDocument}><X size={14}/></button></span></div> : <div className="sidebar-empty">暂无文档</div>}
@@ -423,7 +457,7 @@ function App() {
         <div className="sidebar-separator"/>
         <nav className="outline-nav" aria-label="文档大纲">{outline.map((item,i)=><button key={i} style={{paddingLeft:12+(item.level-1)*10}} onClick={()=>{setTab('preview');setReadOnly(false);rich.current?.chain().focus().setTextSelection(item.pos+1).scrollIntoView().run();}}>{item.text || '未命名标题'}</button>)}</nav>
         <div className="resize-handle" role="separator" aria-orientation="vertical" aria-label="拖动调整文档栏宽度" title="按住左右拖动，改变文档栏宽度" onPointerDown={e=>startResize('left',e)}/>
-        <div className="sidebar-bottom"><div className="format-label">支持格式</div><div className="format-list"><span>MD</span><span>HTML</span><span>DOCX</span><span>DOC</span><span>WPS</span><span>TXT</span></div><div className="size-note">单文件 ≤ 10 MB</div><div className="workspace-user"><span className="avatar"><LockKeyhole size={15}/></span><div><strong>{boot.desktop?'本地工作区':'私有工作区'}</strong><small>会话将在 30 分钟后失效</small></div></div></div>
+        <div className="sidebar-bottom"><div className="format-label">支持格式</div><div className="format-list"><span>MD</span><span>HTML</span><span>DOCX</span><span>DOC</span><span>TXT</span></div><div className="size-note">单文件 ≤ 10 MB</div><div className="workspace-user"><span className="avatar"><LockKeyhole size={15}/></span><div><strong>{boot.desktop?'本地工作区':'私有工作区'}</strong><small>会话将在 30 分钟后失效</small></div></div></div>
       </aside>
       {sidebar && <button className="sidebar-scrim" aria-label="关闭文档栏" onClick={()=>setSidebar(false)}/>}
       <main className="editor">
@@ -436,8 +470,8 @@ function App() {
         {notice && <div className="alert" role="status">{notice}</div>}
         {sync==='error' && <div className="sync-error"><span>修改仍保留在编辑器中，发布已暂停。</span><button className="small-button" onClick={()=>flushDraft().catch(()=>{})}><RefreshCw size={13}/>重试同步</button></div>}
         <div className="document-area">
-          {busy==='convert'?<div className="document-loading"><Loader2 className="spin" size={26}/><h2>正在转换文档</h2><span>准备页面内容与配套图片</span></div>:!document?<button className="empty-upload" onClick={()=>importDocument()}><CloudUpload size={36}/><h2>选择文档</h2><span>Markdown / HTML / Word / WPS / TXT</span></button>:
-            <><div className="preview-page" style={{display:tab==='preview'?'':'none'}}><div className="preview-page-head"><span title={readOnly?'这是本地近似预览，不是 Confluence 官方页面。字体、宏外观和站点主题以目标页面为准。':'这里改的是本地正文。约 1 秒后更新发布稿；写回磁盘请点「保存到文件」。'}><span className="confluence-mark">{readOnly?'C':'编'}</span>{readOnly?'近似预览':'正在编辑'}</span><div className="editor-mode-tools"><button className="small-button" title={readOnly?'返回编辑，继续修改正文':'查看即将发布的正文。版式只是近似，和 Confluence 站点不会完全一致。'} onClick={()=>setReadOnly(!readOnly)}>{readOnly?'返回编辑':'发布预览'}</button></div></div><div className="preview-body" style={{display:readOnly?'none':''}}><RichEditor key={generation.current} content={editorContent.html} contentVersion={editorContent.version} disabled={!!busy || !!document.blockers.length} onChange={({source})=>changeDraft(source)} onError={setError} onReady={editor=>{rich.current=editor;}} onOutline={setOutline}/></div>{readOnly && <iframe title="Confluence 文档预览" sandbox="allow-same-origin" srcDoc={makeSrcDoc(document.preview)}/>}</div>
+          {busy==='convert'?<div className="document-loading"><Loader2 className="spin" size={26}/><h2>正在转换文档</h2><span>准备页面内容与配套图片</span></div>:!document?<button className="empty-upload" onClick={()=>importDocument()}><CloudUpload size={36}/><h2>选择文档</h2><span>Markdown / HTML / Word / TXT</span></button>:
+            <><div className="preview-page" style={{display:tab==='preview'?'':'none'}}><div className="preview-page-head"><span title={readOnly?'这是本地近似预览，不是 Confluence 官方页面。字体、宏外观和站点主题以目标页面为准。':'这里改的是本地正文。约 1 秒后更新发布稿；写回磁盘请点「保存到文件」。'}><span className="confluence-mark">{readOnly?'C':'编'}</span>{readOnly?'近似预览':'正在编辑'}</span><div className="editor-mode-tools"><button className="small-button" title={readOnly?'返回编辑，继续修改正文':'查看即将发布的正文。版式只是近似，和 Confluence 站点不会完全一致。'} onClick={()=>setReadOnly(!readOnly)}>{readOnly?'返回编辑':'发布预览'}</button></div></div><div className="preview-body" style={{display:readOnly?'none':''}}><RichEditor key={generation.current} content={editorContent.html} contentVersion={editorContent.version} disabled={!!busy || (!!document.blockers.length && !document.preview.includes('data-pageport-missing-image'))} onChange={({source})=>changeDraft(source)} onError={setError} onReady={editor=>{rich.current=editor;}} onOutline={setOutline}/></div>{readOnly && <iframe title="Confluence 文档预览" sandbox="allow-same-origin" srcDoc={makeSrcDoc(document.preview)}/>}</div>
             {tab==='source'?<div className="source-view"><div className="source-toolbar"><span>Markdown{dirty?' · 未导出':''}</span><button className="small-button" disabled={!edited || !!busy} onClick={()=>flushDraft().catch(()=>{})}><RefreshCw size={13}/>立即同步</button></div><textarea aria-label="文档源文件" spellCheck={false} value={source} disabled={!!busy} onChange={e=>changeDraft(e.target.value,'source')}/></div>:tab==='checks'?
             <div className="checks-view"><h2>转换检查</h2><div className="checks-intro">{document.blockers.length?'有待处理的阻断项':'转换完成，可继续核对目标页面'}</div>
               <div className="check-row"><CheckCircle2 size={18}/><div><strong>内容结构</strong><p>{document.stats.headings} 个标题 · {document.stats.tables} 个表格 · {document.stats.images} 张图片</p></div></div>

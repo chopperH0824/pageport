@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { test } from "node:test";
 import { load } from "cheerio";
+import semver from "semver";
 
 const root = new URL("../", import.meta.url);
 const html = fs.readFileSync(new URL("site/index.html", root), "utf8");
@@ -11,8 +12,9 @@ const pkg = JSON.parse(fs.readFileSync(new URL("package.json", root), "utf8"));
 
 test("download site embeds the same published version and installer metadata", () => {
   assert.deepEqual(JSON.parse($("#release-meta").text()), meta);
-  assert.equal(meta.version, pkg.version);
-  assert.equal($("#nav-version").text(), `v${pkg.version}`);
+  // The website keeps the last verified release until both new installers exist.
+  assert.ok(semver.valid(meta.version) && semver.lte(meta.version, pkg.version));
+  assert.equal($("#nav-version").text(), `v${meta.version}`);
   assert.equal(meta.assets.length, 2);
   for (const asset of meta.assets) {
     assert.match(asset.sha256, /^[a-f0-9]{64}$/);
@@ -41,7 +43,7 @@ test("platform selector shares exactly one installer link", () => {
 
 test("download navigation preserves PagePort branding and local-only visual assets", () => {
   assert.equal($("h1").text(), "下载 PagePort 客户端");
-  assert.equal($(".brand-link img").attr("src"), "./favicon.svg");
+  assert.equal($(".brand-link img").attr("src"), "./brand.png");
   assert.equal($(".download-subnav a").length, 4);
   assert.equal($(".download-subnav [aria-current='location']").attr("href"), "#download");
   $("img").each((_, el) => {
@@ -49,6 +51,16 @@ test("download navigation preserves PagePort branding and local-only visual asse
     assert.ok($(el).attr("alt") !== undefined, "images need explicit alt text");
   });
   assert.ok(!html.includes("feishu.cn"), "do not depend on reference-site resources");
+});
+
+test("desktop and download site share the approved raster brand", () => {
+  const appBrand = fs.readFileSync(new URL("public/brand.png", root));
+  assert.deepEqual(appBrand, fs.readFileSync(new URL("site/brand.png", root)));
+  assert.equal(appBrand.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+  assert.equal($("link[rel=icon]").attr("href"), "./brand.png");
+  const main = fs.readFileSync(new URL("src/main.jsx", root), "utf8");
+  assert.ok(main.includes('src="/brand.png"'));
+  assert.ok(main.includes("import './brand-theme.css'"));
 });
 
 test("download page assets and section links resolve locally", () => {

@@ -3,7 +3,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PagePort — macOS 与 Windows 本地 Confluence 文档发布台</title>
   <meta name="description" content="PagePort 是面向 Confluence Server / Data Center 的本地文档发布工具，提供 macOS Apple Silicon 与 Windows x64 安装包。内置 Mark 16.22.0，支持导入、可视化精修、自动备份与版本保护更新。国内直连下载。">
-  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <meta name="theme-color" content="#2463eb">
+  <link rel="icon" type="image/png" href="./brand.png">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
   <header class="site-header">
     <div class="container nav-inner">
       <a href="#" class="brand-link" aria-label="PagePort 首页">
-        <img src="./favicon.svg" alt="PagePort Logo" width="28" height="28">
+        <img src="./brand.png" alt="PagePort Logo" width="36" height="36">
         <span>PagePort</span>
         <span class="version-pill" id="nav-version">v0.4.1</span>
       </a>
@@ -46,10 +47,7 @@
           <a href="#install-guide">安装指南</a>
         </nav>
         <div class="hero-top">
-          <div class="hero-eyebrow">
-            <span>本地文档 · 稳妥发布</span>
-          </div>
-          <h1 class="hero-title">下载 PagePort 客户端</h1>
+          <h1 class="hero-title">下载 PagePort <span class="title-suffix">客户端</span></h1>
           <p class="hero-subtitle">
             从 Word、Markdown 到 Confluence，在本机完成整理与发布。
           </p>
@@ -57,8 +55,8 @@
 
           <div class="download-panel" id="download">
             <div class="download-platform" role="group" aria-label="选择下载系统">
-              <button type="button" class="platform-choice is-on" data-download-os="mac" aria-pressed="true"><img src="./laptop.svg" alt="" width="36" height="36"><strong>macOS 客户端</strong><span>Apple Silicon · macOS 13+</span></button>
-              <button type="button" class="platform-choice" data-download-os="windows" aria-pressed="false"><img src="./monitor.svg" alt="" width="36" height="36"><strong>Windows 客户端</strong><span>Windows 10 / 11 · x64</span></button>
+              <button type="button" class="platform-choice is-on" data-download-os="mac" aria-pressed="true"><img src="./laptop.svg" alt="" width="44" height="44"><strong>macOS 客户端</strong><span>Apple Silicon · macOS 13+</span></button>
+              <button type="button" class="platform-choice" data-download-os="windows" aria-pressed="false"><img src="./monitor.svg" alt="" width="44" height="44"><strong>Windows 客户端</strong><span>Windows 10 / 11 · x64</span></button>
             </div>
             <div class="download-row" aria-live="polite" aria-atomic="true">
               <div class="download-copy">
@@ -144,7 +142,7 @@
                   <span class="mac-dot max"></span>
                 </div>
                 <div class="stage-brand">
-                  <img src="./favicon.svg" alt="" width="18" height="18">
+                  <img src="./brand.png" alt="" width="24" height="24">
                   <span>PagePort</span>
                 </div>
                 <span class="stage-divider"></span>
@@ -264,7 +262,6 @@
                     <span>MD</span>
                     <span>DOCX</span>
                     <span>DOC</span>
-                    <span>WPS</span>
                     <span>HTML</span>
                     <span>TXT</span>
                   </div>
@@ -450,7 +447,8 @@
             </div>
             <h3>多格式导入与本机文件写回</h3>
             <p>
-              支持 <code>.md</code>、<code>.docx</code>、旧版 <code>.doc</code>、<code>.wps</code>、<code>.html</code> 及 Confluence 导出的 MIME Word 文件。Markdown 与纯文本可直接保存写回原文件，Word/HTML 编辑后可一键另存为干净的 Markdown。
+              支持 <code>.md</code>、<code>.docx</code>、旧版 <code>.doc</code>、<code>.html</code> 及 Confluence 导出的 MIME Word 文件。Markdown 与纯文本可直接保存写回原文件，Word/HTML 编辑后可一键另存为干净的 Markdown。
+              <a href="#dingtalk-guide">查看钉钉在线文档导入指引</a>。
             </p>
             <div class="feature-meta-tag">Mac 旧版 DOC 用 textutil；Windows 旧版 DOC 请先另存为 DOCX</div>
           </article>
@@ -561,7 +559,7 @@
                   <td>输出为高兼容性的 <code>&lt;pre&gt;&lt;code&gt;</code>，避免旧版 Confluence 代码宏语言参数报错。</td>
                 </tr>
                 <tr>
-                  <td><strong>旧版二进制 <code>.doc</code> / <code>.wps</code></strong></td>
+                  <td><strong>旧版二进制 <code>.doc</code></strong></td>
                   <td><span class="status-chip guard">分平台</span></td>
                   <td>Mac 通过系统转换；Windows 请先另存为 DOCX。Confluence 网页导出的 Word 两端都可导入。</td>
                 </tr>
@@ -604,6 +602,30 @@
                 本地预览为高还原度的近似样式，而非 Confluence 官方渲染器。首次接入企业 Confluence 时，建议先在个人空间测试页体验完整备份与发布流程。
               </p>
             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-band surface-white" id="dingtalk-guide">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-kicker">DINGTALK</span>
+          <h2 class="section-title-h2">钉钉在线文档，带到 Confluence</h2>
+          <p class="section-lead">无需配置钉钉密钥。选择复制正文，或导出本地文件后导入。</p>
+        </div>
+        <div class="security-checklist">
+          <div class="security-item">
+            <h4>复制正文并粘贴</h4>
+            <p>在有访问权限的钉钉文档中选中正文并复制，切回 PagePort 空白工作区粘贴；已有文档时可直接粘贴到编辑器。请复制正文而不是分享链接。按复制内容中保留的结构识别标题、提示块、任务、状态及表格。</p>
+          </div>
+          <div class="security-item">
+            <h4>导出 Word 或 Markdown</h4>
+            <p>在钉钉文档菜单中选择导出为 Word（.docx）或 Markdown（菜单因版本或权限可能不同），将文件拖入 PagePort。解压导出包后，Markdown 与配套图片一并导入。无法导出时请向文档所有者申请权限。</p>
+          </div>
+          <div class="security-item">
+            <h4>核对图片与特殊内容</h4>
+            <p>不会读取钉钉登录态、自动抓取链接或下载私有图片。缺失图片需手动补充；带认证或时效的图片地址不代表已归档。公式、流程图、附件、评论和专有组件不保证还原，复杂表格与宏请先在独立测试页核对。</p>
           </div>
         </div>
       </div>
@@ -657,7 +679,7 @@
               </li>
               <li>
                 <strong>不用额外运行时</strong>
-                <span>不需要安装 Go、Node 或 Word。数据在 <code>%APPDATA%\PagePort\data</code>，更新时保留。真正的旧版二进制 DOC / WPS 请先另存为 DOCX。</span>
+                <span>不需要安装 Go、Node 或 Word。数据在 <code>%APPDATA%\PagePort\data</code>，更新时保留。真正的旧版二进制 DOC 请先另存为 DOCX。</span>
               </li>
             </ol>
           </article>
@@ -714,7 +736,7 @@
   <footer class="site-footer">
     <div class="container footer-inner">
       <div class="footer-brand">
-        <img src="./favicon.svg" alt="PagePort" width="24" height="24">
+        <img src="./brand.png" alt="PagePort" width="32" height="32">
         <span>PagePort · macOS 与 Windows 本地 Confluence 文档发布台</span>
       </div>
       <div class="footer-links">

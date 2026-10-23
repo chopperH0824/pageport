@@ -79,7 +79,7 @@ async function readOpenedFile(filePath) {
 ipcMain.handle('pageport:open-document', async () => {
   const choice = await dialog.showOpenDialog(window, {
     properties: ['openFile'],
-    filters: [{ name: '文档', extensions: ['md', 'markdown', 'html', 'htm', 'docx', 'doc', 'wps', 'txt'] }],
+    filters: [{ name: '文档', extensions: ['md', 'markdown', 'html', 'htm', 'docx', 'doc', 'txt'] }],
   });
   if (choice.canceled || !choice.filePaths[0]) return { canceled: true };
   return readOpenedFile(choice.filePaths[0]);
@@ -152,7 +152,7 @@ async function start() {
     callback({requestHeaders:{...details.requestHeaders,'X-PagePort-Desktop':desktopToken}});
   });
   window=new BrowserWindow({
-    width:1440,height:960,minWidth:940,minHeight:660,backgroundColor:'#f5f8f9',
+    width:1440,height:960,minWidth:940,minHeight:660,backgroundColor:'#f1f4f9',
     title:'PagePort · 本地文档发布台',show:false,
     webPreferences:{session:isolatedSession,preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true},
   });
@@ -184,9 +184,24 @@ async function start() {
     await mkdir(output,{recursive:true});
     const deadline=Date.now()+20000;
     let state;
+    while(Date.now()<deadline) {
+      const ready=await window.webContents.executeJavaScript(`!!document.querySelector('[aria-label="设置"]')`);
+      if(ready)break;
+      await new Promise(resolve=>setTimeout(resolve,200));
+    }
+    const startsEmpty=await window.webContents.executeJavaScript(`!document.querySelector('.prose-editor') && !!document.querySelector('.empty-upload')`);
+    if(!startsEmpty)throw new Error('Application must start with an empty workspace.');
+    await writeFile(path.join(output,'desktop-empty-start.png'),(await window.webContents.capturePage()).toPNG());
+    await window.webContents.executeJavaScript(`document.querySelector('[aria-label="设置"]').click();[...document.querySelectorAll('.settings-row')].find(e=>e.textContent.includes('示例文档')).click()`);
     do {
       state=await window.webContents.executeJavaScript(`({
         title:document.title,
+        brand: {
+          loaded:document.querySelector('.brand img')?.complete && document.querySelector('.brand img')?.naturalWidth>0,
+          source:document.querySelector('.brand img')?.getAttribute('src'),
+          blue:getComputedStyle(document.documentElement).getPropertyValue('--blue').trim(),
+          mint:getComputedStyle(document.documentElement).getPropertyValue('--mint').trim()
+        },
         preview:document.querySelector('iframe')?.getAttribute('srcdoc') || '',
         rendered:document.querySelector('.prose-editor')?.innerText || '',
         sync:document.querySelector('.preview-state')?.textContent || '',
@@ -194,6 +209,7 @@ async function start() {
         errors:[...document.querySelectorAll('[role="alert"]')].map(e=>e.textContent),
         overflow:document.documentElement.scrollWidth>innerWidth
       })`);
+      state.startsEmpty=startsEmpty;
       if(state.rendered?.includes('功能概述') && state.sync==='发布稿已同步') break;
       await new Promise(resolve=>setTimeout(resolve,200));
     } while(Date.now()<deadline);
@@ -230,6 +246,23 @@ async function start() {
       state.toc.passed=state.toc.count===1 && state.toc.items>=5 && state.toc.sourceMarker && state.toc.liveUpdate && state.toc.undo && state.toc.previewLinks>=5 && !state.toc.errors.length;
     }
     if(process.argv.includes('--smoke-editor')) {
+      state.modules=await window.webContents.executeJavaScript(`(() => {
+        const common=document.querySelector('#tools-common').getAttribute('aria-selected')==='true';
+        const hidden=!document.querySelector('[aria-label="插入图片"]').checkVisibility();
+        document.querySelector('#tools-insert').click();
+        return {common,hidden};
+      })()`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      state.modules.insert=await window.webContents.executeJavaScript(`document.querySelector('[aria-label="插入图片"]').checkVisibility()`);
+      await window.webContents.executeJavaScript(`document.querySelector('#tools-all').click()`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      state.modules.all=await window.webContents.executeJavaScript(`document.querySelector('[aria-label="插入图片"]').checkVisibility() && document.querySelector('[aria-label^="增加缩进 ("]')?.checkVisibility()`);
+      state.clipboard=await window.webContents.executeJavaScript(`(() => {
+        const data=new DataTransfer();
+        data.setData('text/html','<div data-type="callout" data-callout-type="note"><p>Clipboard synthetic check</p></div><span data-type="status" data-color="green">Synthetic</span>');
+        document.querySelector('.prose-editor').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));
+        return !!document.querySelector('.prose-editor [data-pageport-panel="note"]') && !!document.querySelector('.prose-editor [data-pageport-status="green"]');
+      })()`);
       for(const selector of ['[aria-label="状态标签"]','.status-popover button[type="submit"]','[aria-label="提示面板"]','.panel-popover [data-panel="info"]']) {
         await window.webContents.executeJavaScript(`document.querySelector(${JSON.stringify(selector)}).click()`);
         await new Promise(resolve=>setTimeout(resolve,100));
@@ -252,7 +285,7 @@ async function start() {
       await window.webContents.executeJavaScript(`document.querySelector('[aria-label="关闭查找"]').click()`);
       await new Promise(resolve=>setTimeout(resolve,1500));
       state.editor.errors=await window.webContents.executeJavaScript(`[...document.querySelectorAll('[role="alert"]')].map(e=>e.textContent)`);
-      state.editor.passed=state.editor.status && state.editor.panel && state.editor.words && state.editor.search && !state.editor.errors.length;
+      state.editor.passed=state.modules.common && state.modules.hidden && state.modules.insert && state.modules.all && state.clipboard && state.editor.status && state.editor.panel && state.editor.words && state.editor.search && !state.editor.errors.length;
     }
     if (process.argv.includes('--smoke-updates')) {
       state.spacing = [];
@@ -370,7 +403,7 @@ async function start() {
       await writeFile(path.join(output,'desktop-narrow.png'),(await window.webContents.capturePage()).toPNG());
       await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
     }
-    app.exit(state.rendered?.includes('功能概述') && state.sync==='发布稿已同步' && !state.errors.length && !state.overflow && (!state.toc || (state.toc.passed && !state.toc.narrowOverflow)) && (!state.editor || state.editor.passed) && (!state.updates || state.updates.passed) && (!state.settings || state.settings.passed) && (!state.spacing || state.spacing.every(item=>item.passed)) ? 0 : 1);
+    app.exit(state.brand?.loaded && state.brand.source==='/brand.png' && state.brand.blue==='#2463eb' && state.brand.mint==='#008a78' && state.rendered?.includes('功能概述') && state.sync==='发布稿已同步' && !state.errors.length && !state.overflow && (!state.toc || (state.toc.passed && !state.toc.narrowOverflow)) && (!state.editor || state.editor.passed) && (!state.updates || state.updates.passed) && (!state.settings || state.settings.passed) && (!state.spacing || state.spacing.every(item=>item.passed)) ? 0 : 1);
   }
 }
 app.on('window-all-closed',()=>app.quit());
