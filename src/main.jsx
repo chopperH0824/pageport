@@ -2,21 +2,21 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   ArrowRight, ArrowUpRight, Check, CheckCircle2, ChevronDown, ChevronRight,
-  CloudUpload, Code2, Download, Eye, EyeOff, FileCode2, FileText, Files,
-  History, ImagePlus, Loader2, LockKeyhole, LogOut, PanelLeftClose, PanelLeftOpen,
+  CloudUpload, Code2, Download, Eye, EyeOff, FileText, Files,
+  History, ImagePlus, Loader2, LockKeyhole, PanelLeftClose, PanelLeftOpen,
   PanelRightClose, PanelRightOpen, Plus, RefreshCw, Send, ShieldCheck, TriangleAlert, X, XCircle,
 } from 'lucide-react';
 import './style.css';
 import RichEditor from './RichEditor.jsx';
 import { toMarkdown } from './markdown.js';
-import UpdatePanel from './UpdatePanel.jsx';
+import SettingsPanel from './SettingsPanel.jsx';
 
 const demo = `# PagePort 格式示例
 
 公开的虚构格式示例。
 `;
 const previewCss = `
-*{box-sizing:border-box}html{color-scheme:light}body{margin:0;padding:8px 4px 40px;font:14px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;color:#172b4d;overflow-wrap:anywhere;background:#fff;letter-spacing:0}
+*{box-sizing:border-box}html{color-scheme:light}body{margin:0;padding:24px 32px 48px;font:14px/20px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;color:#172b4d;overflow-wrap:anywhere;background:#fff;letter-spacing:0}
 h1{font-size:24px;line-height:1.25;margin:30px 0 0;font-weight:400;color:#172b4d}h2{font-size:20px;line-height:1.3;margin:30px 0 0;font-weight:400;color:#172b4d}h3{font-size:16px;margin:24px 0 0;font-weight:600;color:#172b4d}p{margin:10px 0 0}
 table{border-collapse:collapse;width:auto;max-width:100%;margin:10px 0 0;table-layout:auto;font-size:14px}th,td{border:1px solid #c1c7d0;padding:7px 10px;vertical-align:top;line-height:20px}th{background:#f4f5f7;font-weight:600;color:#172b4d}td p,th p{margin:0}table table{font-size:14px}
 ul,ol{padding-left:24px;margin:10px 0 0}li{padding-left:2px;margin:0}blockquote{border-left:1px solid #dfe1e5;padding:10px 20px;margin:10px 0 0 19px;background:transparent;color:#7a869a;font-style:normal}blockquote p{margin:0;color:inherit}
@@ -402,8 +402,12 @@ function App() {
       <button className="mobile-menu icon-button" title="打开文档栏" aria-label="打开文档栏" onClick={()=>setSidebar(!sidebar)}><Files size={20}/></button>
       <a href="/" className="brand"><img src="/favicon.svg" alt="" width="32" height="32"/><span>PagePort</span><span className="brand-divider"/><span className="brand-sub">文档发布台</span></a>
       <nav className="top-actions"><span className="engine-status"><span className="status-dot"/>Mark 引擎</span><span className="secure-indicator" title={boot.desktop?'转换与认证均在本机运行，不经过第三方发布服务器':'凭据仅用于本次请求，不保存密码'}><ShieldCheck size={15}/>{boot.desktop?'本机运行':'安全会话'}</span>
-        <UpdatePanel/>
-        <button className="icon-button" title="清除会话" aria-label="清除会话" onClick={async()=>{if(busy)return;await api('/logout',{method:'POST',json:{}});window.location.reload();}}><LogOut size={17}/></button>
+        <SettingsPanel busy={!!busy} historyCount={history.length} onDemo={loadDemo} onHistory={()=>setShowHistory(true)}
+          onLogout={async()=>{
+            if(busy || (dirty && !window.confirm('当前修改尚未保存到文件。清除会话将丢失这些修改，确定继续？')))return;
+            try {await api('/logout',{method:'POST',json:{}});window.location.reload();}
+            catch(err){setError(err.message);}
+          }}/>
       </nav>
     </header>
     <div className={`workspace${leftOpen?'':' left-collapsed'}${rightOpen?'':' right-collapsed'}${resizing?' is-resizing':''}`} style={{'--doc-col':`${leftWidth}px`,'--publish-col':`${rightWidth}px`}}>
@@ -418,8 +422,6 @@ function App() {
         {images.length>0 && <div className="image-list">{images.map((image,index)=><div key={`${image.name}-${index}`}><span title={image.name}>{image.name}</span><button className="icon-button" title={`移除 ${image.name}`} aria-label={`移除 ${image.name}`} disabled={!!busy} onClick={()=>{const next=images.filter((_,i)=>i!==index);if(document?.blockers.length)convert(file,next);else {setImages(next);draft.current.images=next;changeDraft(source,'source');}}}><X size={12}/></button></div>)}</div>}
         <div className="sidebar-separator"/>
         <nav className="outline-nav" aria-label="文档大纲">{outline.map((item,i)=><button key={i} style={{paddingLeft:12+(item.level-1)*10}} onClick={()=>{setTab('preview');setReadOnly(false);rich.current?.chain().focus().setTextSelection(item.pos+1).scrollIntoView().run();}}>{item.text || '未命名标题'}</button>)}</nav>
-        <button className="sidebar-row" title="查看这次会话已经发布的页面" onClick={()=>setShowHistory(true)}><History size={16}/><span>本次发布记录</span><span className="count">{history.length}</span></button>
-        <button className="sidebar-row muted" title="打开内置示例，并替换当前文档" onClick={loadDemo} disabled={!!busy}><FileCode2 size={16}/><span>示例文档</span><ArrowUpRight size={14}/></button>
         <div className="resize-handle" role="separator" aria-orientation="vertical" aria-label="拖动调整文档栏宽度" title="按住左右拖动，改变文档栏宽度" onPointerDown={e=>startResize('left',e)}/>
         <div className="sidebar-bottom"><div className="format-label">支持格式</div><div className="format-list"><span>MD</span><span>HTML</span><span>DOCX</span><span>DOC</span><span>WPS</span><span>TXT</span></div><div className="size-note">单文件 ≤ 10 MB</div><div className="workspace-user"><span className="avatar"><LockKeyhole size={15}/></span><div><strong>{boot.desktop?'本地工作区':'私有工作区'}</strong><small>会话将在 30 分钟后失效</small></div></div></div>
       </aside>

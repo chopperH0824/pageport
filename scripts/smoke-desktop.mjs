@@ -19,5 +19,6 @@ const code = await new Promise((resolve, reject) => { child.once('exit', resolve
 clearTimeout(timer);
 if (code !== 0) throw new Error(`Desktop smoke exited with ${code}.`);
 const state = JSON.parse(await readFile(path.join(output, 'desktop-smoke.json'), 'utf8'));
-if (!state.toc?.passed || !state.editor?.passed || !state.updates?.passed || state.toc.narrowOverflow) throw new Error('Desktop smoke assertions failed.');
-console.log('Desktop editing, TOC, search, narrow window and update UI checks passed.');
+if (!state.toc?.passed || !state.editor?.passed || !state.updates?.passed || !state.settings?.passed ||
+  !state.spacing?.every(item=>item.passed) || state.toc.narrowOverflow) throw new Error('Desktop smoke assertions failed.');
+console.log('Desktop editing, TOC, search, document spacing, settings and update UI checks passed.');

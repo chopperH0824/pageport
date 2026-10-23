@@ -211,9 +211,9 @@ async function start() {
         if(state.toc.count===1 && state.toc.items>=5 && state.toc.sync==='发布稿已同步')break;
         await new Promise(resolve=>setTimeout(resolve,200));
       }while(Date.now()<tocDeadline);
-      await window.webContents.executeJavaScript(`document.querySelector('[role="tab"]:nth-child(2)').click()`);
+      await window.webContents.executeJavaScript(`document.querySelector('.page-heading [role="tab"]:nth-child(2)').click()`);
       state.toc.sourceMarker=await window.webContents.executeJavaScript(`document.querySelector('textarea')?.value.includes('data-pageport-toc="true"')`);
-      await window.webContents.executeJavaScript(`document.querySelector('[role="tab"]:first-child').click();document.querySelector('.contents-node nav button').click()`);
+      await window.webContents.executeJavaScript(`document.querySelector('.page-heading [role="tab"]:first-child').click();document.querySelector('.contents-node nav button').click()`);
       window.webContents.insertText('目录更新验证');
       await new Promise(resolve=>setTimeout(resolve,300));
       state.toc.liveUpdate=await window.webContents.executeJavaScript(`document.querySelector('.contents-node nav').textContent.includes('目录更新验证')`);
@@ -255,6 +255,53 @@ async function start() {
       state.editor.passed=state.editor.status && state.editor.panel && state.editor.words && state.editor.search && !state.editor.errors.length;
     }
     if (process.argv.includes('--smoke-updates')) {
+      state.spacing = [];
+      for (const [name, width, height, focus] of [['normal',1440,960,false],['focus',1440,960,true],['narrow',940,700,false]]) {
+        window.setSize(width,height);
+        await window.webContents.executeJavaScript(`if(document.querySelector('.app-shell').classList.contains('focus-mode')!==${focus})document.querySelector('[aria-label="切换专注模式"]').click();
+          document.querySelector('.rich-document-scroll').scrollTop=0;`);
+        await new Promise(resolve=>setTimeout(resolve,200));
+        const editor = await window.webContents.executeJavaScript(`(() => {
+          const el=document.querySelector('.prose-editor'), style=getComputedStyle(el);
+          return {left:parseFloat(style.paddingLeft),right:parseFloat(style.paddingRight),
+            overflow:document.documentElement.scrollWidth>innerWidth};
+        })()`);
+        await writeFile(path.join(output,`desktop-spacing-${name}.png`),(await window.webContents.capturePage()).toPNG());
+        await window.webContents.executeJavaScript(`document.querySelector('.editor-mode-tools button').click()`);
+        const previewDeadline=Date.now()+5000;
+        let preview;
+        do {
+          preview = await window.webContents.executeJavaScript(`(() => {
+            const body=document.querySelector('iframe')?.contentDocument?.body;
+            if(!body?.children.length)return null;
+            const style=body.ownerDocument.defaultView.getComputedStyle(body);
+            return {left:parseFloat(style.paddingLeft),right:parseFloat(style.paddingRight)};
+          })()`);
+          if(preview)break;
+          await new Promise(resolve=>setTimeout(resolve,100));
+        } while(Date.now()<previewDeadline);
+        await writeFile(path.join(output,`desktop-preview-${name}.png`),(await window.webContents.capturePage()).toPNG());
+        state.spacing.push({name,editor,preview,passed:editor.left>=18 && editor.right>=18 && !editor.overflow && preview?.left>=18 && preview?.right>=18});
+        await window.webContents.executeJavaScript(`document.querySelector('.editor-mode-tools button').click()`);
+      }
+      window.setSize(1440,960);
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="设置"]').click()`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      state.settings = await window.webContents.executeJavaScript(`({
+        general:document.querySelector('#settings-general').checkVisibility(),
+        actions:[...document.querySelectorAll('.settings-row')].map(el=>el.textContent),
+        cleanToolbar:!document.querySelector('.top-actions [aria-label="检查更新"]') && !document.querySelector('.top-actions [aria-label="清除会话"]'),
+        focused:!!document.activeElement.closest('.settings-modal')
+      })`);
+      await writeFile(path.join(output,'desktop-settings.png'),(await window.webContents.capturePage()).toPNG());
+      await window.webContents.executeJavaScript(`document.querySelectorAll('.settings-row')[1].click()`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      state.settings.history=await window.webContents.executeJavaScript(`!!document.querySelector('#history-heading') && !document.querySelector('.settings-overlay').checkVisibility()`);
+      await window.webContents.executeJavaScript(`document.querySelector('.history-modal .modal-close').click();document.querySelector('[aria-label="设置"]').click()`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      await window.webContents.executeJavaScript(`document.querySelector('#settings-general-tab').focus();document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}))`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      state.settings.keyboard=await window.webContents.executeJavaScript(`document.querySelector('#settings-updates-tab').getAttribute('aria-selected')==='true' && document.activeElement.id==='settings-updates-tab'`);
       await window.webContents.executeJavaScript(`document.querySelector('[aria-label="检查更新"]').click()`);
       await new Promise(resolve=>setTimeout(resolve,500));
       state.updates = await window.webContents.executeJavaScript(`({
@@ -264,6 +311,15 @@ async function start() {
         focused: !!document.activeElement?.closest('.update-modal'),
         overflow: document.documentElement.scrollWidth > innerWidth
       })`);
+      state.settings.focusTrap=await window.webContents.executeJavaScript(`(() => {
+        const controls=[...document.querySelectorAll('.settings-modal button:not(:disabled), .settings-modal input:not(:disabled)')]
+          .filter(el=>el.tabIndex>=0 && el.getClientRects().length);
+        controls.at(-1).focus();
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true}));
+        const forward=document.activeElement===controls[0];
+        document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true}));
+        return forward && document.activeElement===controls.at(-1);
+      })()`);
       await writeFile(path.join(output,'desktop-updates.png'),(await window.webContents.capturePage()).toPNG());
       const mockInstaller = Buffer.from('PagePort isolated update download test');
       const mockName = process.platform==='win32' ? 'PagePort-99.0.0-x64-setup.exe' : `PagePort-99.0.0-${process.arch}.dmg`;
@@ -289,7 +345,17 @@ async function start() {
         return rect.left < 0 || rect.right > innerWidth || rect.bottom > innerHeight || rect.top < 0;
       })()`);
       await writeFile(path.join(output,'desktop-updates-downloaded.png'),(await window.webContents.capturePage()).toPNG());
-      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="关闭更新"]').click()`);
+      await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}))`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      state.settings.escape=await window.webContents.executeJavaScript(`!document.querySelector('.settings-overlay').checkVisibility() && document.activeElement.getAttribute('aria-label')==='设置'`);
+      state.settings.badge=await window.webContents.executeJavaScript(`!!document.querySelector('.settings-trigger .update-dot')`);
+      sendUpdateState(true);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      state.settings.menu=await window.webContents.executeJavaScript(`document.querySelector('.settings-overlay').checkVisibility() && document.querySelector('#settings-updates').checkVisibility()`);
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="关闭设置"]').click()`);
+      state.settings.passed=state.settings.general && state.settings.actions.some(text=>text.includes('示例文档')) &&
+        state.settings.actions.some(text=>text.includes('清除会话')) && state.settings.history && state.settings.cleanToolbar && state.settings.focused &&
+        state.settings.keyboard && state.settings.focusTrap && state.settings.escape && state.settings.badge && state.settings.menu;
       state.updates.passed = state.updates.heading === 'PagePort 99.0.0' && state.updates.notes && state.updates.fallback && state.updates.focused &&
         state.updates.downloaded && state.updates.preference && !state.updates.overflow && !state.updates.narrowOverflow;
       window.setSize(1440,960);
@@ -304,7 +370,7 @@ async function start() {
       await writeFile(path.join(output,'desktop-narrow.png'),(await window.webContents.capturePage()).toPNG());
       await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
     }
-    app.exit(state.rendered?.includes('功能概述') && state.sync==='发布稿已同步' && !state.errors.length && !state.overflow && (!state.toc || (state.toc.passed && !state.toc.narrowOverflow)) && (!state.editor || state.editor.passed) && (!state.updates || state.updates.passed) ? 0 : 1);
+    app.exit(state.rendered?.includes('功能概述') && state.sync==='发布稿已同步' && !state.errors.length && !state.overflow && (!state.toc || (state.toc.passed && !state.toc.narrowOverflow)) && (!state.editor || state.editor.passed) && (!state.updates || state.updates.passed) && (!state.settings || state.settings.passed) && (!state.spacing || state.spacing.every(item=>item.passed)) ? 0 : 1);
   }
 }
 app.on('window-all-closed',()=>app.quit());
