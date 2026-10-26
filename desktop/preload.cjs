@@ -10,8 +10,10 @@ contextBridge.exposeInMainWorld('pageportDesktop', {
     check: () => ipcRenderer.invoke('pageport:update-check'),
     download: () => ipcRenderer.invoke('pageport:update-download'),
     reveal: () => ipcRenderer.invoke('pageport:update-reveal'),
+    install: () => ipcRenderer.invoke('pageport:update-install'),
     release: () => ipcRenderer.invoke('pageport:update-release'),
     configure: automatic => ipcRenderer.invoke('pageport:update-configure', automatic),
+    cleanup: value => ipcRenderer.invoke('pageport:update-cleanup', value),
     ignore: ignored => ipcRenderer.invoke('pageport:update-ignore', ignored),
     subscribe: callback => {
       const listener = (_event, state) => callback(state);

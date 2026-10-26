@@ -1,5 +1,5 @@
 const { app, BrowserWindow, session, shell, dialog, Menu, ipcMain, net } = require('electron');
-const { fork } = require('node:child_process');
+const { fork, spawn } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
 const { mkdir, readFile, writeFile } = require('node:fs/promises');
 const { mkdtempSync } = require('node:fs');
@@ -11,29 +11,80 @@ app.setName('PagePort');
 let backend, window, origin, updater;
 let automaticUpdates = true;
 let ignoredUpdateVersion = '';
+let cleanupInstaller = true;
 const openedFiles = new Map();
 const desktopToken = randomBytes(32).toString('hex');
 const smoke = process.argv.includes('--smoke');
 const appRoot = path.resolve(__dirname,'..');
 if(smoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'pageport-smoke-profile-')));
 
-function updateState() { return { ...updater.state, automatic: automaticUpdates, ignoredVersion: ignoredUpdateVersion }; }
+function updateState() {
+  return { ...updater.state, automatic: automaticUpdates, ignoredVersion: ignoredUpdateVersion, cleanupInstaller };
+}
 function sendUpdateState(show = false) {
   if (window && !window.isDestroyed()) window.webContents.send('pageport:update-state', { ...updateState(), show });
 }
 async function saveUpdateSettings() {
   await writeFile(path.join(app.getPath('userData'), 'update-settings.json'),
-    JSON.stringify({ automatic: automaticUpdates, ignoredVersion: ignoredUpdateVersion }), { mode: 0o600 });
+    JSON.stringify({ automatic: automaticUpdates, ignoredVersion: ignoredUpdateVersion, cleanupInstaller }), { mode: 0o600 });
 }
 for (const [action, handler] of Object.entries({
   state: () => updateState(),
   check: async () => { await updater.check(); return updateState(); },
   download: async () => { await updater.download(); return updateState(); },
   reveal: () => { if (updater.state.status === 'downloaded' && updater.downloaded) shell.showItemInFolder(updater.downloaded.file); return updateState(); },
+  install: async () => {
+    if (process.platform !== 'win32') throw new Error('当前平台请打开安装包完成更新。');
+    if (updater.state.status !== 'downloaded' || !updater.downloaded?.file) throw new Error('请先下载并校验安装包。');
+    const installer = updater.downloaded.file;
+    const choice = await dialog.showMessageBox(window, {
+      type: 'info',
+      buttons: ['取消', '打开安装程序'],
+      defaultId: 1,
+      cancelId: 0,
+      title: '安装 PagePort 更新',
+      message: '请先保存文档，再打开安装程序。',
+      detail: cleanupInstaller
+        ? '安装器会在 PagePort 安装完成后自动删除已下载的安装包。你可以在安装器中取消，取消时不会删除安装包。'
+        : '安装器会打开并等待你完成安装，已下载的安装包会保留。',
+    });
+    if (choice.response !== 1) return updateState();
+    const script = '$installer = $env:PAGEPORT_INSTALLER; ' +
+      '$p = Start-Process -FilePath $installer -PassThru -Wait; ' +
+      'if ($p.ExitCode -eq 0) { ' +
+      'if ($env:PAGEPORT_DELETE -eq "1") { Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue }; exit 0 } ' +
+      'else { exit $p.ExitCode }';
+    const child = spawn('powershell.exe', [
+      '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script,
+    ], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      env: { ...process.env, PAGEPORT_INSTALLER: installer, PAGEPORT_DELETE: cleanupInstaller ? '1' : '0' },
+    });
+    child.unref();
+    child.once('close', code => {
+      if (!updater || updater.state.status !== 'installing') return;
+      updater.set(code === 0
+        ? { status: 'installed', error: '' }
+        : { status: 'downloaded', error: '安装程序未完成，安装包仍保留，可重新打开安装程序。' });
+    });
+    updater.set({ status: 'installing', error: '' });
+    // Let the installer take over after PagePort has had a chance to close normally.
+    setTimeout(() => app.quit(), 250).unref();
+    return updateState();
+  },
   release: () => { if (updater.state.releaseUrl) openExternal(updater.state.releaseUrl); return updateState(); },
   configure: async automatic => {
     if (typeof automatic !== 'boolean') throw new Error('Invalid update preference.');
     automaticUpdates = automatic;
+    await saveUpdateSettings();
+    sendUpdateState();
+    return updateState();
+  },
+  cleanup: async cleanup => {
+    if (typeof cleanup !== 'boolean') throw new Error('Invalid installer cleanup preference.');
+    cleanupInstaller = cleanup;
     await saveUpdateSettings();
     sendUpdateState();
     return updateState();
@@ -135,6 +186,7 @@ async function start() {
     const settings = JSON.parse(await readFile(path.join(app.getPath('userData'), 'update-settings.json'), 'utf8'));
     automaticUpdates = settings.automatic !== false;
     ignoredUpdateVersion = typeof settings.ignoredVersion === 'string' ? settings.ignoredVersion : '';
+    cleanupInstaller = settings.cleanupInstaller !== false;
   } catch {}
   updater = new UpdateManager({
     version: app.getVersion(), directory: path.join(app.getPath('userData'), 'updates'),
@@ -216,10 +268,26 @@ async function start() {
       if(ready)break;
       await new Promise(resolve=>setTimeout(resolve,200));
     }
-    const startsEmpty=await window.webContents.executeJavaScript(`!document.querySelector('.prose-editor') && !!document.querySelector('.empty-upload')`);
-    if(!startsEmpty)throw new Error('Application must start with an empty workspace.');
-    await writeFile(path.join(output,'desktop-empty-start.png'),(await window.webContents.capturePage()).toPNG());
-    await window.webContents.executeJavaScript(`document.querySelector('[aria-label="设置"]').click();[...document.querySelectorAll('.settings-row')].find(e=>e.textContent.includes('示例文档')).click()`);
+    const exampleDeadline=Date.now()+20000;
+    if (process.platform === 'win32') {
+      do {
+        state=await window.webContents.executeJavaScript(`({
+          rendered:document.querySelector('.prose-editor')?.innerText || '',
+          sync:document.querySelector('.preview-state')?.textContent || '',
+          errors:[...document.querySelectorAll('[role="alert"]')].map(e=>e.textContent)
+        })`);
+        if(state.rendered.includes('功能概述') && state.sync==='发布稿已同步')break;
+        await new Promise(resolve=>setTimeout(resolve,200));
+      } while(Date.now()<exampleDeadline);
+      state.defaultExample = state.rendered.includes('功能概述') && state.sync==='发布稿已同步' && !state.errors.length;
+      if(!state.defaultExample)throw new Error('Windows must start with the public example document.');
+      await writeFile(path.join(output,'desktop-default-start.png'),(await window.webContents.capturePage()).toPNG());
+    } else {
+      const startsEmpty=await window.webContents.executeJavaScript(`!document.querySelector('.prose-editor') && !!document.querySelector('.empty-upload')`);
+      if(!startsEmpty)throw new Error('macOS must start with an empty workspace.');
+      await writeFile(path.join(output,'desktop-empty-start.png'),(await window.webContents.capturePage()).toPNG());
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="设置"]').click();[...document.querySelectorAll('.settings-row')].find(e=>e.textContent.includes('示例文档')).click()`);
+    }
     do {
       state=await window.webContents.executeJavaScript(`({
         title:document.title,
@@ -236,7 +304,6 @@ async function start() {
         errors:[...document.querySelectorAll('[role="alert"]')].map(e=>e.textContent),
         overflow:document.documentElement.scrollWidth>innerWidth
       })`);
-      state.startsEmpty=startsEmpty;
       if(state.rendered?.includes('功能概述') && state.sync==='发布稿已同步') break;
       await new Promise(resolve=>setTimeout(resolve,200));
     } while(Date.now()<deadline);
@@ -395,6 +462,11 @@ async function start() {
       while (updater.state.status !== 'downloaded' && Date.now()<downloadDeadline) await new Promise(resolve=>setTimeout(resolve,100));
       state.updates.downloaded = updater.state.status === 'downloaded' &&
         await window.webContents.executeJavaScript(`document.querySelector('.update-verified')?.textContent.includes('SHA-256')`);
+      state.updates.cleanupOption = process.platform !== 'win32' ||
+        await window.webContents.executeJavaScript(`document.querySelector('[aria-label="安装完成后删除安装包"]')?.checked === true`);
+      if (process.platform !== 'win32') {
+        await window.webContents.executeJavaScript(`document.querySelector('.update-modal button.primary').click()`);
+      }
       await window.webContents.executeJavaScript(`document.querySelector('[aria-label="自动检查更新"]').click()`);
       await new Promise(resolve=>setTimeout(resolve,100));
       state.updates.preference = !automaticUpdates && JSON.parse(await readFile(path.join(app.getPath('userData'),'update-settings.json'),'utf8')).automatic === false;
@@ -425,7 +497,7 @@ async function start() {
         state.settings.actions.some(text=>text.includes('清除会话')) && state.settings.history && state.settings.cleanToolbar && state.settings.focused &&
         state.settings.keyboard && state.settings.focusTrap && state.settings.escape && state.settings.badge && state.settings.menu;
       state.updates.passed = state.updates.heading === 'PagePort 99.0.0' && state.updates.notes && state.updates.fallback && state.updates.focused &&
-        state.updates.downloaded && state.updates.preference && state.updates.ignore && state.updates.unignore &&
+        state.updates.downloaded && state.updates.cleanupOption && state.updates.preference && state.updates.ignore && state.updates.unignore &&
         !state.updates.overflow && !state.updates.narrowOverflow;
       window.setSize(1440,960);
       await new Promise(resolve=>setTimeout(resolve,100));

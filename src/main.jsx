@@ -162,7 +162,7 @@ function App() {
   const [editorContent,setEditorContent] = useState({html:'',version:0}), [outline,setOutline] = useState([]);
   const [readOnly,setReadOnly] = useState(false), [focus,setFocus] = useState(false), [sync,setSync] = useState('ready'), [dirty,setDirty] = useState(false);
   const rich = useRef(null), draft = useRef({revision:0,applied:0,source:'',images:[],origin:'rich'}), pending = useRef(null);
-  const input = useRef(), imageInput = useRef(), generation = useRef(0);
+  const input = useRef(), imageInput = useRef(), generation = useRef(0), initialDemoRequested = useRef(false);
   const fileToken = useRef(null), fileHandle = useRef(null);
   const csrfRef = useRef('');
   async function api(route, options = {}) {
@@ -358,6 +358,12 @@ function App() {
       setBoot(data); csrfRef.current = data.csrf; setCsrf(data.csrf);
     }).catch(()=>setError('无法连接服务，请刷新重试。'));
   },[]);
+  useEffect(()=>{
+    if (!boot?.authenticated || !boot.desktop || window.pageportDesktop?.platform !== 'win32' ||
+      initialDemoRequested.current || document || busy) return;
+    initialDemoRequested.current = true;
+    loadDemo();
+  },[boot?.authenticated, boot?.desktop]);
   useEffect(()=>{
     if (!plan) return;
     const update = () => setRemaining(Math.max(0,Math.ceil((plan.deadline-Date.now())/1000)));
