@@ -1,755 +1,252 @@
-<!DOCTYPE html><html lang="zh-CN"><head>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PagePort — macOS 与 Windows 本地 Confluence 文档发布台</title>
-  <meta name="description" content="PagePort 是面向 Confluence Server / Data Center 的本地文档发布工具，提供 macOS Apple Silicon 与 Windows x64 安装包。内置 Mark 16.22.0，支持导入、可视化精修、自动备份与版本保护更新。国内直连下载。">
-  <meta name="theme-color" content="#2463eb">
+  <title>PagePort — 本机完成 Confluence 文档发布</title>
+  <meta name="description" content="PagePort 是面向 Confluence Server / Data Center 的本地文档发布工具。导入、编辑、备份、核验和发布，都在你的电脑上完成。">
+  <meta name="theme-color" content="#f7f9fc">
   <link rel="icon" type="image/png" href="./brand.png">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <a class="skip-link" href="#download">跳到下载</a>
-  <!-- Top Navigation -->
+
   <header class="site-header">
     <div class="container nav-inner">
-      <a href="#" class="brand-link" aria-label="PagePort 首页">
+      <a class="brand-link" href="#download" aria-label="PagePort 首页">
         <img src="./brand.png" alt="PagePort Logo" width="36" height="36">
-        <span>PagePort</span>
+        <span class="brand-name">PagePort</span>
         <span class="version-pill" id="nav-version">v0.5.0</span>
       </a>
 
       <nav class="nav-links" aria-label="主导航">
-        <a href="#demo">使用流程</a>
-        <a href="#features">核心能力</a>
-        <a href="#boundaries">兼容与安全</a>
-        <a href="#install-guide">安装指南</a>
-        <a href="#release-notes">版本更新</a>
+        <a href="#features">功能</a>
+        <a href="#demo">教程</a>
+        <a href="#boundaries">安全边界</a>
+        <a href="#install-guide">安装</a>
       </nav>
 
       <div class="nav-actions">
-        <a href="https://github.com/chopperH0824/pageport" target="_blank" rel="noopener noreferrer" class="btn btn-ghost" title="查看 GitHub 开源仓库" aria-label="GitHub">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path><path d="M9 18c-4.51 2-5-2-7-2"></path></svg>
-          <span>GitHub</span>
-        </a>
-        <a href="#download" class="btn btn-primary btn-sm">下载客户端</a>
+        <a class="nav-github" href="https://github.com/chopperH0824/pageport" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a class="btn btn-primary btn-small" href="#download">下载客户端</a>
       </div>
     </div>
   </header>
 
+  <nav class="download-subnav" aria-label="下载页导航">
+    <div class="container subnav-inner">
+      <a href="#download" class="is-active" aria-current="location">下载</a>
+      <a href="#features">功能</a>
+      <a href="#demo">教程</a>
+      <a href="#install-guide">安装</a>
+    </div>
+  </nav>
+
   <main>
-    <!-- Hero & Interactive Guided Walkthrough Stage -->
-    <section class="hero-band" id="walkthrough">
-      <div class="container">
-        <nav class="download-subnav" aria-label="下载页导航">
-          <a href="#download" class="is-active" aria-current="location">下载客户端</a>
-          <a href="#demo">使用流程</a>
-          <a href="#features">产品能力</a>
-          <a href="#install-guide">安装指南</a>
-        </nav>
-        <div class="hero-top">
-          <h1 class="hero-title">下载 PagePort <span class="title-suffix">客户端</span></h1>
-          <p class="hero-subtitle">
-            从 Word、Markdown 到 Confluence，在本机完成整理与发布。
-          </p>
-          <p class="hero-compatibility">支持 macOS Apple Silicon 与 Windows 10 / 11 x64 <span>·</span> <a href="#release-notes">查看更新日志</a></p>
+    <section class="hero" id="download">
+      <div class="hero-art" aria-hidden="true">
+        <img src="./assets/pageport-hero.png" alt="">
+      </div>
+      <div class="container hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-dot"></span>为 Confluence 准备的本机工作台</p>
+          <h1>下载 PagePort 客户端</h1>
+          <p class="hero-lead">从 Word、Markdown 到 Confluence，<br>在自己的电脑上整理好，再稳稳发布。</p>
+          <div class="hero-trust">
+            <span><i class="check-icon">✓</i> 不经第三方云端中转</span>
+            <span><i class="check-icon">✓</i> 备份、版本锁、回读核验</span>
+          </div>
 
-          <div class="download-panel" id="download">
-            <div class="download-platform" role="group" aria-label="选择下载系统">
-              <button type="button" class="platform-choice is-on" data-download-os="mac" aria-pressed="true"><img src="./laptop.svg" alt="" width="44" height="44"><strong>macOS 客户端</strong><span>Apple Silicon · macOS 13+</span></button>
-              <button type="button" class="platform-choice" data-download-os="windows" aria-pressed="false"><img src="./monitor.svg" alt="" width="44" height="44"><strong>Windows 客户端</strong><span>Windows 10 / 11 · x64</span></button>
+          <div class="download-card">
+            <div class="platform-switch" role="group" aria-label="选择下载系统">
+              <button type="button" class="platform-choice is-on" data-download-os="mac" aria-pressed="true">
+                <img src="./laptop.svg" alt="" width="26" height="26">
+                <span class="platform-copy"><strong>macOS 客户端</strong><small>Apple Silicon · macOS 13+</small></span>
+                <span class="platform-check" aria-hidden="true">✓</span>
+              </button>
+              <button type="button" class="platform-choice" data-download-os="windows" aria-pressed="false">
+                <img src="./monitor.svg" alt="" width="26" height="26">
+                <span class="platform-copy"><strong>Windows 客户端</strong><small>Windows 10 / 11 · x64</small></span>
+                <span class="platform-check" aria-hidden="true">✓</span>
+              </button>
             </div>
-            <div class="download-row" aria-live="polite" aria-atomic="true">
-              <div class="download-copy">
-                <p id="download-meta">DMG · v0.5.0 · 159.6 MB</p>
-                <p class="dl-file" id="download-file">PagePort-0.5.0-arm64.dmg</p>
-              </div>
-              <a class="btn btn-primary btn-sm" id="download-installer" href="/downloads/PagePort-0.5.0-arm64.dmg" aria-label="下载 macOS 安装包"><img src="./download.svg" alt="" width="16" height="16">下载安装包</a>
-            </div>
-          </div>
-          <p class="hero-alt">
-            <a href="https://github.com/chopperH0824/pageport/releases/tag/v0.5.0" id="github-release-link" target="_blank" rel="noopener noreferrer">GitHub Releases 备选源</a>
-          </p>
-
-          <div class="hero-meta-strip">
-            <span class="hero-meta-item">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#087f72" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              <span>文档在本机转换 · 不经第三方中转</span>
-            </span>
-            <span class="hero-meta-item">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#087f72" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect></svg>
-              <span>两端都内置 Mark 16.22.0</span>
-            </span>
-          </div>
-          <div class="sha-row">
-            <button type="button" class="sha-copy-btn" id="copy-sha" title="复制所选安装包 SHA-256">
-              <span id="sha-text">macOS SHA-256: d989c604…41062dd3</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Interactive 4-Step Walkthrough Controller & Simulated App Window -->
-        <div class="stage-wrapper" id="demo" aria-label="PagePort 四步使用动效引导">
-          <div class="demo-heading"><div><span class="section-kicker">工作流，一目了然</span><h2>一份文档，四步发布</h2></div><span>交互示意 · 虚构文稿</span></div>
-          <div class="walkthrough-controls" role="tablist" aria-label="发布流程步骤">
-            <button type="button" class="step-trigger active" role="tab" aria-selected="true" data-step-index="0">
-              <div class="step-trigger-head">
-                <span class="step-num">STEP 01</span>
-                <span class="step-time">导入解析</span>
-              </div>
-              <strong>拖入 Word / Markdown 文档</strong>
-              <span class="step-desc">兼容 .md / .docx / .doc / Confluence 导出档</span>
-              <div class="step-progress-bar" data-progress-index="0"></div>
-            </button>
-
-            <button type="button" class="step-trigger" role="tab" aria-selected="false" data-step-index="1">
-              <div class="step-trigger-head">
-                <span class="step-num">STEP 02</span>
-                <span class="step-time">排版与宏</span>
-              </div>
-              <strong>可视化精修与原生宏插入</strong>
-              <span class="step-desc">自动目录 [TOC]、五色状态胶囊、提示面板</span>
-              <div class="step-progress-bar" data-progress-index="1"></div>
-            </button>
-
-            <button type="button" class="step-trigger" role="tab" aria-selected="false" data-step-index="2">
-              <div class="step-trigger-head">
-                <span class="step-num">STEP 03</span>
-                <span class="step-time">预检备份</span>
-              </div>
-              <strong>核对线上目标页与自动备份</strong>
-              <span class="step-desc">检查版本号、内嵌图片完整性并拉取原稿备份</span>
-              <div class="step-progress-bar" data-progress-index="2"></div>
-            </button>
-
-            <button type="button" class="step-trigger" role="tab" aria-selected="false" data-step-index="3">
-              <div class="step-trigger-head">
-                <span class="step-num">STEP 04</span>
-                <span class="step-time">安全发布</span>
-              </div>
-              <strong>标题二次确认与回读核验</strong>
-              <span class="step-desc">版本锁保护替换正文，自动核对文字与表格数量</span>
-              <div class="step-progress-bar" data-progress-index="3"></div>
-            </button>
-          </div>
-
-          <!-- Simulated PagePort Desktop Window -->
-          <div class="app-stage-window" id="app-stage" data-step="0" data-os="mac">
-            <div class="stage-topbar">
-              <div class="stage-topbar-left">
-                <div class="mac-traffic" aria-hidden="true">
-                  <span class="mac-dot close"></span>
-                  <span class="mac-dot min"></span>
-                  <span class="mac-dot max"></span>
-                </div>
-                <div class="stage-brand">
-                  <img src="./brand.png" alt="" width="24" height="24">
-                  <span>PagePort</span>
-                </div>
-                <span class="stage-divider"></span>
-                <span class="stage-sub">文档发布台</span>
-              </div>
-
-              <div class="stage-topbar-right">
-                <span class="stage-os-label" id="stage-os-label">macOS 示意</span>
-                <span class="stage-badge">
-                  <span class="live-dot" style="width:6px;height:6px;"></span>
-                  <span>Mark 16.22.0 引擎</span>
-                </span>
-                <span class="stage-badge">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#087f72" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                  <span>本机隔离运行</span>
-                </span>
-                <button type="button" class="stage-playback-btn" id="toggle-autoplay-btn" title="暂停或继续自动演示">
-                  <span id="autoplay-label">自动演示中 · 点击暂停</span>
+            <div class="download-action">
+              <div class="download-details">
+                <span class="download-label" id="download-meta">DMG · v0.5.0 · 159.6 MB</span>
+                <strong id="download-file">PagePort-0.5.0-arm64.dmg</strong>
+                <button type="button" class="sha-copy-btn" id="copy-sha" title="复制所选安装包 SHA-256">
+                  <span id="sha-text">macOS SHA-256: d989c604…41062dd3</span>
+                  <span aria-hidden="true">复制</span>
                 </button>
-                <div class="win-controls" aria-hidden="true">
-                  <span class="win-btn" title="最小化">–</span>
-                  <span class="win-btn" title="最大化">□</span>
-                  <span class="win-btn win-close" title="关闭">×</span>
-                </div>
               </div>
-            </div>
-
-            <div class="stage-workspace">
-              <!-- Step 1 Drop Overlay Animation -->
-              <div class="stage-drop-overlay" id="stage-drop-overlay">
-                <div class="flying-doc-chip">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#087f72" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                  <span>示例说明.docx（正在解析标题与表格…）</span>
-                </div>
-                <span style="font-size:12px;">释放文件直接导入本机工作区 · 不上传任何外部云端</span>
-              </div>
-
-              <!-- Step 2 Floating Selection Bubble -->
-              <div class="stage-floating-toolbar" aria-hidden="true">
-                <strong>B</strong>
-                <span style="text-decoration:underline;">U</span>
-                <span class="tool-sep" style="background:rgba(255,255,255,0.2);"></span>
-                <span class="swatch-dot" style="background:#2da58d;"></span>
-                <span class="swatch-dot" style="background:#3b82f6;"></span>
-                <span class="swatch-dot" style="background:#f59e0b;"></span>
-                <span style="background:#087f72;padding:2px 6px;border-radius:3px;font-weight:600;">插入状态宏</span>
-              </div>
-
-              <!-- Step 4 Confirmation & Readback Modal -->
-              <div class="stage-confirm-modal" aria-hidden="true">
-                <div class="stage-modal-card">
-                  <div class="stage-modal-head">
-                    <div class="stage-modal-badge">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    </div>
-                    <div>
-                      <h4>标题确认通过 · 发布并回读核验完成</h4>
-                      <p>目标页面：示例：发布说明（版本 v12 → v13）</p>
-                    </div>
-                  </div>
-                  <div class="stage-verify-list">
-                    <div class="stage-verify-item">
-                      <span>原页面本机备份</span>
-                      <strong>已保存至 backups/2026-10-23_page.html</strong>
-                    </div>
-                    <div class="stage-verify-item">
-                      <span>线上版本锁校验</span>
-                      <strong>v12 无并发冲突 → 安全写入 v13</strong>
-                    </div>
-                    <div class="stage-verify-item">
-                      <span>回读正文结构核对</span>
-                      <strong>章节 5 · 表格 1 · 状态宏 2 一致</strong>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Left Column: Document & Outline -->
-              <aside class="stage-sidebar">
-                <div class="stage-side-label">
-                  <span>工作区</span>
-                  <span>本机读写</span>
-                </div>
-                <div class="stage-import-btn">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#087f72" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                  <span>导入文档</span>
-                </div>
-
-                <div class="stage-side-label" style="margin-top:4px;">
-                  <span>当前文档</span>
-                  <span>01</span>
-                </div>
-                <div class="stage-file-card">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#087f72" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:2px;flex-shrink:0;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                  <div class="stage-file-info">
-                    <strong id="stage-file-name">示例说明.docx</strong>
-                    <small>
-                      <span class="live-dot" style="width:5px;height:5px;"></span>
-                      <span id="stage-file-status">2.4 KB · 已转换</span>
-                    </small>
-                  </div>
-                </div>
-
-                <div class="stage-outline">
-                  <div class="stage-outline-title">章节大纲</div>
-                  <div class="stage-outline-item active">1. 写作与导入</div>
-                  <div class="stage-outline-item">2. 排版与目录</div>
-                  <div class="stage-outline-item">3. 发布前检查</div>
-                  <div class="stage-outline-item">4. 确认与回读</div>
-                </div>
-
-                <div class="stage-formats">
-                  <div class="stage-side-label" style="padding:0;">
-                    <span>支持导入格式</span>
-                  </div>
-                  <div class="stage-format-badges">
-                    <span>MD</span>
-                    <span>DOCX</span>
-                    <span>DOC</span>
-                    <span>HTML</span>
-                    <span>TXT</span>
-                  </div>
-                </div>
-              </aside>
-
-              <!-- Center Column: Rich Editor & Confluence Preview -->
-              <div class="stage-center">
-                <div class="stage-doc-header">
-                  <div class="stage-doc-title">
-                    <span>发布工作区</span>
-                    <span class="stage-compat-tag">Confluence 7.6 兼容模式</span>
-                  </div>
-                </div>
-
-                <div class="stage-tabs">
-                  <span class="stage-tab active" id="stage-tab-edit">编辑预览</span>
-                  <span class="stage-tab" id="stage-tab-source">源文件 (Markdown)</span>
-                  <span class="stage-tab" id="stage-tab-checks">检查项 (0 阻塞)</span>
-                  <span class="stage-sync-indicator" id="stage-sync-text">
-                    <span class="live-dot" style="width:6px;height:6px;"></span>
-                    <span>发布稿已同步</span>
-                  </span>
-                </div>
-
-                <div class="stage-toolbar">
-                  <span class="tool-pill">H1–H6</span>
-                  <span class="tool-pill">格式刷</span>
-                  <span class="tool-pill">文字色</span>
-                  <span class="tool-pill">高亮</span>
-                  <span class="tool-sep"></span>
-                  <span class="tool-pill highlight-tool" id="tool-toc">插入目录 [TOC]</span>
-                  <span class="tool-pill highlight-tool" id="tool-status">状态标签</span>
-                  <span class="tool-pill highlight-tool" id="tool-panel">提示面板</span>
-                  <span class="tool-sep"></span>
-                  <span class="tool-pill">表格行列</span>
-                  <span class="tool-pill">查找替换</span>
-                </div>
-
-                <div class="stage-paper">
-                  <div class="paper-confluence-bar">
-                    <span class="c-badge">C CONFLUENCE 近似发布预览</span>
-                    <span>转换引擎：Mark 16.22.0 · 原生 Storage Format</span>
-                  </div>
-
-                  <div class="paper-toc-box">
-                    <div class="paper-toc-head">
-                      <span>正文目录 (发布时自动转为 Confluence 原生 TOC 宏)</span>
-                      <span style="font-size:10px;color:#5a847b;">H1 – H3</span>
-                    </div>
-                    <div class="paper-toc-list">
-                      <span>1. 写作与导入</span>
-                      <span>2. 排版与目录</span>
-                      <span>3. 发布前检查</span>
-                    </div>
-                  </div>
-
-                  <div class="paper-h1">
-                    <span>示例：发布说明</span>
-                    <span class="macro-status" id="stage-status-macro">待发布</span>
-                  </div>
-
-                  <div class="macro-panel">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                    <span><strong>提示：</strong>这是虚构演示文稿，不含真实账号、页面或内部文档。</span>
-                  </div>
-
-                  <table class="paper-table">
-                    <thead>
-                      <tr>
-                        <th style="width:26%;">步骤</th>
-                        <th style="width:48%;">说明</th>
-                        <th style="width:26%;">状态</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>导入</td>
-                        <td>在本机解析标题、列表与表格</td>
-                        <td><span class="macro-status" style="font-size:9px;padding:1px 6px;">已完成</span></td>
-                      </tr>
-                      <tr>
-                        <td>备份</td>
-                        <td>发布前把线上原文保存到本机</td>
-                        <td><span class="macro-status" style="font-size:9px;padding:1px 6px;background:#e5f0ff;color:#1d4ed8;border-color:#bfdbfe;">待确认</span></td>
-                      </tr>
-                    </tbody>
-                  </table>
-
-                  <div class="paper-footer" style="margin-top:auto;">
-                    <span>842 字 · 1 个表格 · 0 张缺图</span>
-                    <span>UTF-8 · 完整正文替换保护</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Right Column: Confluence Target Check & Safe Publish -->
-              <aside class="stage-publish">
-                <div class="stage-pub-head">
-                  <div class="stage-pub-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                  </div>
-                  <span>发布到 Confluence</span>
-                </div>
-
-                <div class="stage-stepper">
-                  <span class="stage-step-dot done" id="pub-dot-1">1</span>
-                  <span class="stage-step-line"></span>
-                  <span class="stage-step-dot" id="pub-dot-2">2</span>
-                  <span class="stage-step-line"></span>
-                  <span class="stage-step-dot" id="pub-dot-3">3</span>
-                </div>
-
-                <div class="stage-field">
-                  <label>01 目标页面 HTTPS 链接</label>
-                  <div class="stage-input-mock">https://wiki.corp.example.com/pages/viewpage.action?pageId=98304</div>
-                </div>
-
-                <div class="stage-field">
-                  <label>02 账号认证（仅当次请求内存使用，不保存）</label>
-                  <div class="stage-input-mock">演示账号 · 不保存密码</div>
-                </div>
-
-                <div class="stage-target-card" id="stage-target-card">
-                  <div class="stage-target-row">
-                    <span>目标页标题</span>
-                    <strong>示例：发布说明</strong>
-                  </div>
-                  <div class="stage-target-row">
-                    <span>线上当前版本</span>
-                    <strong id="stage-version-text">v12 (无行内评论冲突)</strong>
-                  </div>
-                  <div class="stage-backup-pill">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline></svg>
-                    <span>发布前自动备份原正文到本机</span>
-                  </div>
-                </div>
-
-                <div class="stage-publish-cta" id="stage-publish-btn">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                  <span id="stage-publish-btn-text">核对标题并确认发布</span>
-                </div>
-              </aside>
-            </div>
-
-            <!-- Bottom Guided Narration Bar -->
-            <div class="stage-caption-bar">
-              <div class="caption-left">
-                <span class="caption-step-tag" id="caption-step-badge">STEP 01 / 04</span>
-                <span id="caption-text">
-                  拖入或选择本地 .docx / .md 文档。Mac 与 Windows 都在本机完成解析，演示文稿是虚构示例。
-                </span>
-              </div>
-              <div class="caption-right">
-                <div class="os-switch" role="group" aria-label="切换窗口示意">
-                  <button type="button" class="os-switch-btn is-on" data-os-choice="mac" aria-pressed="true">macOS</button>
-                  <button type="button" class="os-switch-btn" data-os-choice="windows" aria-pressed="false">Windows</button>
-                </div>
-                <button type="button" class="caption-nav-btn" id="prev-step-btn">上一步</button>
-                <button type="button" class="caption-nav-btn" id="next-step-btn">下一步</button>
-              </div>
+              <a class="btn btn-primary download-button" id="download-installer" href="/downloads/PagePort-0.5.0-arm64.dmg" aria-label="下载 macOS 安装包">
+                <span>下载并开始</span>
+                <span aria-hidden="true">↓</span>
+              </a>
             </div>
           </div>
+          <p class="hero-note">安装包未代码签名。下载后请按本页摘要核对，再按系统提示打开。</p>
         </div>
       </div>
     </section>
 
-    <!-- Core Capabilities Section -->
-    <section class="section-band surface-white" id="features">
+    <section class="section-band section-white" id="features">
       <div class="container">
-        <div class="section-header">
-          <span class="section-kicker">CORE WORKFLOW &amp; CAPABILITIES</span>
-          <h2 class="section-title-h2">把时间留给内容，不是重复排版</h2>
-          <p class="section-lead">
-            告别在网页编辑器里反复调整表格宽度与上传零散图片。PagePort 把本地写作的流畅度与企业内网 Wiki 的严谨发布结合在同一个桌面窗口。
-          </p>
+        <div class="section-heading">
+          <p class="eyebrow">只保留真正有用的能力</p>
+          <h2>写得顺，发得稳</h2>
+          <p>PagePort 把本地写作体验和企业 Wiki 的发布约束放在同一个窗口里。</p>
         </div>
-
         <div class="feature-grid">
           <article class="feature-card">
-            <div class="feature-icon-box">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-            </div>
-            <h3>多格式导入与本机文件写回</h3>
-            <p>
-              支持 <code>.md</code>、<code>.docx</code>、旧版 <code>.doc</code>、<code>.html</code> 及 Confluence 导出的 MIME Word 文件。Markdown 与纯文本可直接保存写回原文件，Word/HTML 编辑后可一键另存为干净的 Markdown。
-              <a href="#dingtalk-guide">查看钉钉在线文档导入指引</a>。
-            </p>
-            <div class="feature-meta-tag">Mac 旧版 DOC 用 textutil；Windows 旧版 DOC 请先另存为 DOCX</div>
+            <div class="feature-number">01</div>
+            <h3>导入并整理</h3>
+            <p>拖入 <code>.docx</code>、<code>.md</code>、HTML 或 Confluence 导出文档，在本机继续编辑。</p>
+            <span class="feature-caption">格式、表格与图片一起带进来</span>
           </article>
-
           <article class="feature-card">
-            <div class="feature-icon-box blue">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
-            </div>
-            <h3>Confluence 原生宏与复杂表格</h3>
-            <p>
-              内置正文目录 <code>[TOC]</code>、五色状态胶囊（Status 宏）、四类信息提示面板（Info / Tip / Note / Warning），发布时直接转为 Confluence 原生宏。完整保留合并单元格、表格百分比宽度与单元格底色。
-            </p>
-            <div class="feature-meta-tag">原生 Storage Format 宏转换 · 非静态截图</div>
+            <div class="feature-number">02</div>
+            <h3>原生排版</h3>
+            <p>目录、状态标签、提示面板和复杂表格，发布时转换成 Confluence 原生结构。</p>
+            <span class="feature-caption">所见即所得，源码也能随时检查</span>
           </article>
-
           <article class="feature-card">
-            <div class="feature-icon-box">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-            </div>
-            <h3>模块化工具栏与快捷排版</h3>
-            <p>
-              按常用、插入、排版与全部工具切换，提供字号、文字颜色、高亮、表格底色、格式刷、多级缩进、特殊符号、日期、查找替换（macOS <code>⌘F</code> / Windows <code>Ctrl+F</code>）与实时字数统计。
-            </p>
-            <div class="feature-meta-tag">源码视图与可视化视图毫秒级双向同步</div>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon-box amber">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
-            </div>
-            <h3>备份先行 + 版本锁防覆盖</h3>
-            <p>
-              每次发布前强制拉取线上原页面保存至本机备份目录，并检查版本号冲突与行内评论。要求手动输入或核对页面标题二次确认，发布后自动回读线上正文，核对字数、表格、行与图片数量。
-            </p>
-            <div class="feature-meta-tag">Mac：~/Library/Application Support/PagePort/data/backups · Windows：%APPDATA%\PagePort\data\backups</div>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon-box blue">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-            </div>
-            <h3>本地与内嵌图片哈希归档</h3>
-            <p>
-              自动提取 Word 内嵌图片或关联本地 PNG / JPEG / GIF / WebP，校验真实文件签名后以内容哈希命名上传为 Confluence 页面附件。遇到缺失图片自动阻断发布，防止将破损占位符发到线上。
-            </p>
-            <div class="feature-meta-tag">单图 ≤ 6 MB · 最多 24 张配套图片</div>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon-box">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-            </div>
-            <h3>零云端中转的本机隐私边界</h3>
-            <p>
-              桌面版仅在随机 Loopback 端口运行，每次启动生成独立访问令牌。文档在本机转换，账号密码仅存在于当前会话内存。检查与发布时直连你指定的 HTTPS Confluence，不经第三方发布服务器中转。
-            </p>
-            <div class="feature-meta-tag">Electron 沙箱隔离 · 退出应用即销毁会话</div>
+            <div class="feature-number">03</div>
+            <h3>备份后发布</h3>
+            <p>先检查版本和标题，再备份原页、替换正文，最后回读核对结果。</p>
+            <span class="feature-caption">凭据只在当前会话内存中存在</span>
           </article>
         </div>
       </div>
     </section>
 
-    <!-- Format Compatibility & Security Boundaries -->
-    <section class="section-band surface-subtle" id="boundaries">
+    <section class="section-band section-soft" id="demo">
       <div class="container">
-        <div class="section-header">
-          <span class="section-kicker">TRANSPARENT BOUNDARIES</span>
-          <h2 class="section-title-h2">格式兼容矩阵与安全发布准则</h2>
-          <p class="section-lead">
-            PagePort 追求可预期的工程可靠性，明确告知每一类内容在线上的真实转换行为，不伪装不支持的格式。
-          </p>
-        </div>
-
-        <div class="matrix-layout">
-          <div class="data-table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th style="width:28%;">内容与格式</th>
-                  <th style="width:20%;">支持状态</th>
-                  <th>发布到 Confluence 行为说明</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong>标题、列表、任务清单、粗斜体、颜色/高亮</strong></td>
-                  <td><span class="status-chip ok">原生转换</span></td>
-                  <td>完整保留层级、文字颜色、背景高亮及 Confluence 原生任务勾选结构。</td>
-                </tr>
-                <tr>
-                  <td><strong>正文目录 <code>[TOC]</code>、状态胶囊、提示面板</strong></td>
-                  <td><span class="status-chip ok">原生宏</span></td>
-                  <td>转换为 Confluence 原生 <code>toc</code>、<code>status</code> 及 <code>info/tip/note/warning</code> 宏。</td>
-                </tr>
-                <tr>
-                  <td><strong>复杂表格（合并单元格 / 底色 / 宽度）</strong></td>
-                  <td><span class="status-chip ok">结构保留</span></td>
-                  <td>保留 <code>rowspan</code> / <code>colspan</code>、单元格对齐、底色及表格百分比宽度。</td>
-                </tr>
-                <tr>
-                  <td><strong>本地图片与 Word 内嵌图</strong></td>
-                  <td><span class="status-chip ok">附件上传</span></td>
-                  <td>校验文件真实签名后按内容哈希上传为页面附件；缺失本地图片时阻止发布。</td>
-                </tr>
-                <tr>
-                  <td><strong>代码块</strong></td>
-                  <td><span class="status-chip ok">兼容模式</span></td>
-                  <td>输出为高兼容性的 <code>&lt;pre&gt;&lt;code&gt;</code>，避免旧版 Confluence 代码宏语言参数报错。</td>
-                </tr>
-                <tr>
-                  <td><strong>旧版二进制 <code>.doc</code></strong></td>
-                  <td><span class="status-chip guard">分平台</span></td>
-                  <td>Mac 通过系统转换；Windows 请先另存为 DOCX。Confluence 网页导出的 Word 两端都可导入。</td>
-                </tr>
-                <tr>
-                  <td><strong>远程外链图片与脚本/任意宏</strong></td>
-                  <td><span class="status-chip guard">安全拦截</span></td>
-                  <td>不自动抓取未授权外网图片；清理 HTML 脚本、iframe 与未知的外部专有宏。</td>
-                </tr>
-              </tbody>
-            </table>
+        <div class="section-heading split-heading">
+          <div>
+            <p class="eyebrow">三步上手</p>
+            <h2>从文件到线上页面</h2>
           </div>
-
-          <div class="security-checklist">
-            <div class="security-item">
-              <h4>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#087f72" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                <span>只更新指定已有页面，绝不乱建或移动页面</span>
-              </h4>
-              <p>
-                发布模式始终为「替换指定目标页完整正文」，不会修改页面 ID、父子层级或访问权限。若检测到线上页面含有未处理的行内评论，将主动拒绝覆盖以保护团队讨论。
-              </p>
+          <p>不需要额外安装 Node、Go 或 Word。打开 PagePort，就能从第一步开始。</p>
+        </div>
+        <div class="tutorial-grid">
+          <article class="tutorial-step">
+            <span class="step-index">1</span>
+            <div>
+              <h3>导入文档</h3>
+              <p>把 Word、Markdown 或导出的页面文件拖进工作区，标题、列表和表格自动解析。</p>
             </div>
-
-            <div class="security-item">
-              <h4>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#087f72" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                <span>凭据零持久化，修改正文立即失效旧确认</span>
-              </h4>
-              <p>
-                Confluence 账号密码仅存在于当前内存，发布完成后自动清空。核对目标页后若再次修改正文，发布确认状态会立即重置，杜绝“看的是旧预览、发的是未核对新稿”。
-              </p>
+          </article>
+          <article class="tutorial-step">
+            <span class="step-index">2</span>
+            <div>
+              <h3>检查与精修</h3>
+              <p>在可视化编辑器中补齐目录、提示和状态，右侧实时查看发布前结构。</p>
             </div>
-
-            <div class="security-item">
-              <h4>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b37d40" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                <span>首次使用建议在个人测试页验证</span>
-              </h4>
-              <p>
-                本地预览为高还原度的近似样式，而非 Confluence 官方渲染器。首次接入企业 Confluence 时，建议先在个人空间测试页体验完整备份与发布流程。
-              </p>
+          </article>
+          <article class="tutorial-step">
+            <span class="step-index">3</span>
+            <div>
+              <h3>确认并发布</h3>
+              <p>输入目标页地址，核对版本和标题。备份完成后发布，PagePort 自动回读结果。</p>
             </div>
+          </article>
+        </div>
+        <div class="tutorial-note">
+          <span class="note-mark">i</span>
+          <span>首次连接企业 Confluence，建议先在个人测试页完整走一遍流程。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-band section-white" id="boundaries">
+      <div class="container boundary-layout">
+        <div class="section-heading">
+          <p class="eyebrow">透明的安全边界</p>
+          <h2>你始终知道它会做什么</h2>
+          <p>PagePort 只做明确授权的页面更新，不替你猜测，也不偷偷上传内容。</p>
+        </div>
+        <div class="boundary-list">
+          <div class="boundary-item">
+            <span class="boundary-icon">↗</span>
+            <div><strong>只连接你指定的 HTTPS 页面</strong><p>不自动抓取远程图片，不读取其他网页登录态。</p></div>
+          </div>
+          <div class="boundary-item">
+            <span class="boundary-icon">⌁</span>
+            <div><strong>文档转换在本机完成</strong><p>账号信息只在本次请求内存中使用，退出即清除。</p></div>
+          </div>
+          <div class="boundary-item">
+            <span class="boundary-icon">✓</span>
+            <div><strong>每次发布前先备份和锁版本</strong><p>发现版本冲突、缺图或未处理评论时主动阻止覆盖。</p></div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="section-band surface-white" id="dingtalk-guide">
+    <section class="section-band section-soft" id="install-guide">
       <div class="container">
-        <div class="section-header">
-          <span class="section-kicker">DINGTALK</span>
-          <h2 class="section-title-h2">钉钉在线文档，带到 Confluence</h2>
-          <p class="section-lead">无需配置钉钉密钥。选择复制正文，或导出本地文件后导入。</p>
+        <div class="section-heading">
+          <p class="eyebrow">安装指南</p>
+          <h2>下载后，按你的系统打开</h2>
+          <p>两端都带有 Mark 16.22.0，不需要额外准备运行环境。</p>
         </div>
-        <div class="security-checklist">
-          <div class="security-item">
-            <h4>复制正文并粘贴</h4>
-            <p>在有访问权限的钉钉文档中选中正文并复制，切回 PagePort 空白工作区粘贴；已有文档时可直接粘贴到编辑器。请复制正文而不是分享链接。按复制内容中保留的结构识别标题、提示块、任务、状态及表格。</p>
-          </div>
-          <div class="security-item">
-            <h4>导出 Word 或 Markdown</h4>
-            <p>在钉钉文档菜单中选择导出为 Word（.docx）或 Markdown（菜单因版本或权限可能不同），将文件拖入 PagePort。解压导出包后，Markdown 与配套图片一并导入。无法导出时请向文档所有者申请权限。</p>
-          </div>
-          <div class="security-item">
-            <h4>核对图片与特殊内容</h4>
-            <p>不会读取钉钉登录态、自动抓取链接或下载私有图片。缺失图片需手动补充；带认证或时效的图片地址不代表已归档。公式、流程图、附件、评论和专有组件不保证还原，复杂表格与宏请先在独立测试页核对。</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section-band surface-white" id="install-guide">
-      <div class="container">
-        <div class="section-header">
-          <span class="section-kicker">INSTALL</span>
-          <h2 class="section-title-h2">macOS 与 Windows 分别这样打开</h2>
-          <p class="section-lead">
-            macOS 与 Windows 安装包均未代码签名。请先核对 SHA-256，再按系统提示允许运行，不要关闭系统安全保护。
-          </p>
-        </div>
-
-        <div class="platform-grid">
-          <article class="install-panel" id="install-mac">
-            <header class="install-panel-head">
-              <span class="install-step-num">macOS</span>
-              <h3>Apple Silicon · 拖入应用程序</h3>
-            </header>
-            <ol class="install-steps">
-              <li>
-                <strong>打开 DMG</strong>
-                <span>下载 <code id="install-dmg-name">PagePort-0.5.0-arm64.dmg</code>，把 PagePort 拖入「应用程序」。当前没有 Intel 安装包。</span>
-              </li>
-              <li>
-                <strong>首次允许打开</strong>
-                <span>确认安装包来源与摘要后，若提示未能验证开发者，到「系统设置 → 隐私与安全性」选择「仍要打开」。</span>
-              </li>
-              <li>
-                <strong>连上内网即可发布</strong>
-                <span>不用单独安装 Go 或 Mark。菜单「PagePort → 打开备份文件夹」可查看本机原稿。</span>
-              </li>
+        <div class="install-grid">
+          <article class="install-panel is-current" id="install-mac">
+            <div class="install-panel-top"><span class="os-label">macOS</span><span class="install-platform">Apple Silicon</span></div>
+            <h3>拖入“应用程序”</h3>
+            <ol>
+              <li>打开 <code id="install-dmg-name">PagePort-0.5.0-arm64.dmg</code>。</li>
+              <li>将 PagePort 拖入“应用程序”。首次打开按系统提示允许。</li>
+              <li>登录你的 Confluence，开始导入和发布。</li>
             </ol>
           </article>
-
           <article class="install-panel" id="install-windows">
-            <header class="install-panel-head">
-              <span class="install-step-num">Windows</span>
-              <h3>x64 安装向导 · 保留原有数据</h3>
-            </header>
-            <ol class="install-steps">
-              <li>
-                <strong>运行安装程序</strong>
-                <span>下载 <code id="install-exe-name">PagePort-0.5.0-x64-setup.exe</code>。默认装给当前用户，在所选位置自动创建 PagePort 文件夹；已选择同名文件夹时不会重复嵌套。没有 Windows ARM64 包。</span>
-              </li>
-              <li>
-                <strong>SmartScreen 提示时先核对</strong>
-                <span>可能显示未知发布者。对照本页 SHA-256 后再选「仍要运行」。不要关闭系统安全保护。</span>
-              </li>
-              <li>
-                <strong>不用额外运行时</strong>
-                <span>不需要安装 Go、Node 或 Word。数据在 <code>%APPDATA%\PagePort\data</code>，更新时保留。真正的旧版二进制 DOC 请先另存为 DOCX。</span>
-              </li>
+            <div class="install-panel-top"><span class="os-label">Windows</span><span class="install-platform">x64</span></div>
+            <h3>运行安装向导</h3>
+            <ol>
+              <li>运行 <code id="install-exe-name">PagePort-0.5.0-x64-setup.exe</code>。</li>
+              <li>选择安装目录。SmartScreen 提示时先核对 SHA-256。</li>
+              <li>打开 PagePort，数据会保留在当前用户目录。</li>
             </ol>
           </article>
         </div>
       </div>
     </section>
 
-    <!-- Latest Release Notes & Real Workspace Screenshot -->
-    <section class="section-band surface-subtle" id="release-notes">
-      <div class="container">
-        <div class="release-layout">
-          <div class="release-box">
-            <div class="release-box-head">
-              <div>
-                <span class="section-kicker" style="margin-bottom:2px;">LATEST RELEASE</span>
-                <h3 class="release-heading" id="release-box-title">PagePort v0.5.0 正式版</h3>
-              </div>
-              <span class="version-pill" id="release-date-badge">2026-10-23</span>
-            </div>
-
-            <ul class="release-list" id="release-highlights-list"><li>全新双页之桥图标，统一 macOS、Windows、应用工作区与官网品牌。</li><li>蓝色编辑区、青绿发布区与白色正文，优化工具栏、目录及设置的视觉层次。</li><li>重做下载页，提供清晰的系统选择、共用下载按钮和随系统切换的安装包摘要。</li><li>启动为空白工作区，移除旧内置文稿；编辑工具可分模块切换，新增字号与单元格底色。</li><li>新增在线文档富文本粘贴、导出格式适配与钉钉指引；不读取登录态或抓取私有图片。</li><li>Windows 自动创建 PagePort 安装目录；移除 .wps 格式入口。</li><li>保留导入、原生宏、自动备份、版本冲突保护与发布回读核验。</li><li>下载后校验 SHA-256，由你确认安装，不静默重启或清除运行数据。</li></ul>
-
-          </div>
-
-          <div class="release-box">
-            <div class="release-box-head">
-              <div>
-                <span class="section-kicker" style="margin-bottom:2px;">PACKAGES</span>
-                <h3 class="release-heading">两个系统的安装包</h3>
-              </div>
-            </div>
-            <div class="package-list">
-              <article class="package-row">
-                <div>
-                  <strong>macOS · Apple Silicon</strong>
-                  <div id="package-mac-file">PagePort-0.5.0-arm64.dmg · 159.6 MB</div>
-                </div>
-              </article>
-              <article class="package-row">
-                <div>
-                  <strong>Windows · x64</strong>
-                  <div id="package-windows-file">PagePort-0.5.0-x64-setup.exe · 129.3 MB</div>
-                </div>
-              </article>
-            </div>
-            <p class="package-note"><a href="#download">选择系统并下载 ↑</a></p>
-          </div>
+    <section class="section-band section-white release-section" id="release-notes">
+      <div class="container release-layout">
+        <div class="release-copy">
+          <p class="eyebrow">最新版本</p>
+          <h2 id="release-box-title">PagePort v0.5.0 正式版</h2>
+          <p>一份轻量、可核对、适合团队协作的本地发布工作台。</p>
+          <a id="github-release-link" class="text-link" href="https://github.com/chopperH0824/pageport/releases/tag/v0.5.0" target="_blank" rel="noopener noreferrer">查看 GitHub Release →</a>
+        </div>
+        <div class="release-summary">
+          <div class="release-summary-head"><span>更新日期</span><strong id="release-date-badge">2026-10-23</strong></div>
+          <ul id="release-highlights-list">
+            <li>全新双页之桥图标，统一 macOS、Windows、应用工作区与官网品牌。</li>
+            <li>重做下载页，提供清晰的系统选择、共用下载按钮和安装包摘要。</li>
+            <li>保留导入、原生宏、自动备份、版本冲突保护与发布回读核验。</li>
+          </ul>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Footer -->
   <footer class="site-footer">
     <div class="container footer-inner">
-      <div class="footer-brand">
-        <img src="./brand.png" alt="PagePort" width="32" height="32">
-        <span>PagePort · macOS 与 Windows 本地 Confluence 文档发布台</span>
-      </div>
+      <a class="footer-brand" href="#download"><img src="./brand.png" alt="PagePort" width="28" height="28"><span>PagePort</span></a>
       <div class="footer-links">
-        <a href="/downloads/latest.json" target="_blank" rel="noopener">版本元数据 (latest.json)</a>
+        <a href="/downloads/latest.json" target="_blank" rel="noopener">版本元数据</a>
         <a href="https://github.com/chopperH0824/pageport" target="_blank" rel="noopener noreferrer">GitHub 源码</a>
-        <a href="https://github.com/chopperH0824/pageport/releases" target="_blank" rel="noopener noreferrer">历史版本</a>
         <span>MIT License</span>
       </div>
     </div>
   </footer>
 
   <!-- release-meta:start -->
-<script type="application/json" id="release-meta">
+  <script type="application/json" id="release-meta">
 {
   "product": "PagePort",
   "version": "0.5.0",
@@ -800,13 +297,8 @@
     }
   ]
 }
-</script>
-<!-- release-meta:end -->
+  </script>
+  <!-- release-meta:end -->
   <script src="./app.js"></script>
-
-
-
-
-
-
-</body></html>
+</body>
+</html>
