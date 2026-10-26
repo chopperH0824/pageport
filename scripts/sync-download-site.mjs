@@ -29,6 +29,7 @@ const HIGHLIGHTS = [
   "首次检测到新版本会自动打开更新提示，也可以勾选此版本不再提醒。",
   "保留编辑、导入、发布、自动备份与版本冲突保护。"
 ];
+const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
 const version = pkg.version;
@@ -83,7 +84,10 @@ let assets = [
 let publishedAt;
 if (process.argv.includes("--github")) {
   const response = await fetch(`https://api.github.com/repos/chopperH0824/pageport/releases/tags/v${version}`, {
-    headers: { Accept: "application/vnd.github+json" }
+    headers: {
+      Accept: "application/vnd.github+json",
+      ...(githubToken ? { Authorization: `Bearer ${githubToken}` } : {})
+    }
   });
   if (!response.ok) throw new Error(`GitHub Release 查询失败：${response.status}`);
   const release = await response.json();
@@ -182,20 +186,24 @@ if (!shouldDeploy) {
   process.exit(0);
 }
 
-// Never publish metadata that refers to files absent from the deployment.
-for (const asset of assets) {
-  const local = path.join(releaseDir, asset.filename);
-  if (!fs.existsSync(local) || fs.statSync(local).size !== asset.sizeBytes
-    || crypto.createHash("sha256").update(fs.readFileSync(local)).digest("hex") !== asset.sha256) {
-    throw new Error(`部署前必须备齐并校验安装包：${asset.filename}`);
-  }
-}
-
 const sshHost = process.env.PAGEPORT_SSH_HOST;
 const remoteRoot = process.env.PAGEPORT_REMOTE_DIR || "/var/www/pageport";
+const serverPull = process.env.PAGEPORT_SERVER_PULL === "1";
 if (!sshHost || !/^[a-zA-Z0-9_][a-zA-Z0-9_.@-]*$/.test(sshHost)
   || !/^\/[a-zA-Z0-9/_-]+$/.test(remoteRoot)) {
   throw new Error("部署需要有效的 PAGEPORT_SSH_HOST 与绝对远程目录");
+}
+const shellQuote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+
+// Never publish metadata that refers to files absent from the deployment.
+if (!serverPull) {
+  for (const asset of assets) {
+    const local = path.join(releaseDir, asset.filename);
+    if (!fs.existsSync(local) || fs.statSync(local).size !== asset.sizeBytes
+      || crypto.createHash("sha256").update(fs.readFileSync(local)).digest("hex") !== asset.sha256) {
+      throw new Error(`部署前必须备齐并校验安装包：${asset.filename}`);
+    }
+  }
 }
 console.log(`正在同步官网与安装包到 ${sshHost}:${remoteRoot} ...`);
 execFileSync("ssh", [sshHost, `mkdir -p ${remoteRoot}/downloads ${remoteRoot}/assets`], {
@@ -203,12 +211,25 @@ execFileSync("ssh", [sshHost, `mkdir -p ${remoteRoot}/downloads ${remoteRoot}/as
 });
 const publishAssets = hasInstallers ? assets : [];
 for (const asset of publishAssets) {
-  const localFile = path.join(releaseDir, asset.filename);
-  execFileSync(
-    "rsync",
-    ["-avz", localFile, `${sshHost}:${remoteRoot}/downloads/${asset.filename}`],
-    { stdio: "inherit" }
-  );
+  const remoteFile = `${remoteRoot}/downloads/${asset.filename}`;
+  if (serverPull) {
+    const partial = `${remoteFile}.partial`;
+    const command = [
+      "set -eu",
+      `curl -L --fail --retry 3 --silent --show-error ${shellQuote(asset.githubDownloadUrl)} -o ${shellQuote(partial)}`,
+      `test \"$(stat -c %s ${shellQuote(partial)})\" = ${shellQuote(asset.sizeBytes)}`,
+      `test \"$(sha256sum ${shellQuote(partial)} | awk '{print $1}')\" = ${shellQuote(asset.sha256)}`,
+      `mv -f ${shellQuote(partial)} ${shellQuote(remoteFile)}`
+    ].join("; ");
+    execFileSync("ssh", [sshHost, command], { stdio: "inherit" });
+  } else {
+    const localFile = path.join(releaseDir, asset.filename);
+    execFileSync(
+      "rsync",
+      ["-avz", localFile, `${sshHost}:${remoteFile}`],
+      { stdio: "inherit" }
+    );
+  }
   const remoteHash = execFileSync("ssh", [sshHost, `sha256sum ${remoteRoot}/downloads/${asset.filename}`],
     { encoding: "utf8" }).trim().split(/\s+/)[0];
   if (remoteHash !== asset.sha256) throw new Error(`服务器安装包摘要不一致：${asset.filename}`);
