@@ -50,12 +50,19 @@ for (const [action, handler] of Object.entries({
     });
     if (choice.response !== 1) return updateState();
     const script = '$installer = $env:PAGEPORT_INSTALLER; ' +
-      '$p = Start-Process -FilePath $installer -PassThru -Wait; ' +
+      '$working = Split-Path -Parent $installer; ' +
+      '$p = Start-Process -FilePath $installer -WorkingDirectory $working -PassThru -Wait; ' +
       'if ($p.ExitCode -eq 0) { ' +
-      'if ($env:PAGEPORT_DELETE -eq "1") { Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue }; exit 0 } ' +
-      'else { exit $p.ExitCode }';
+      'if ($env:PAGEPORT_DELETE -eq "1") { ' +
+      '$deadline = (Get-Date).AddSeconds(30); ' +
+      'do { ' +
+      'try { Remove-Item -LiteralPath $installer -Force -ErrorAction Stop } catch {}; ' +
+      'if (-not (Test-Path -LiteralPath $installer)) { break }; ' +
+      'Start-Sleep -Milliseconds 500 ' +
+      '} while ((Get-Date) -lt $deadline) ' +
+      '}; exit $p.ExitCode';
     const child = spawn('powershell.exe', [
-      '-NoLogo', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', script,
+      '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', script,
     ], {
       detached: true,
       stdio: 'ignore',
@@ -63,6 +70,15 @@ for (const [action, handler] of Object.entries({
       env: { ...process.env, PAGEPORT_INSTALLER: installer, PAGEPORT_DELETE: cleanupInstaller ? '1' : '0' },
     });
     child.unref();
+    const launched = await new Promise((resolve, reject) => {
+      child.once('spawn', resolve);
+      child.once('error', reject);
+    }).then(() => true, () => {
+      updater.set({ status: 'downloaded', error: '无法直接启动安装程序，安装包仍保留，可重新打开安装程序。' });
+      return false;
+    });
+    if (!launched) return updateState();
+    updater.set({ status: 'installing', error: '' });
     child.once('close', code => {
       if (!updater || updater.state.status !== 'installing') return;
       updater.set(code === 0
