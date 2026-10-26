@@ -26,8 +26,8 @@ const indexPath = path.join(siteDir, "index.html");
 const HIGHLIGHTS = [
   "设置里的「发布页」打开 pageport.chopperh.me 下载区，便于在国内直接下载。",
   "安装包仍按当前系统从官方 Release 下载，并校验文件大小与 SHA-256。",
-  "启动后的自动检查仍只在设置图标上显示圆点，不弹窗打断编辑。",
-  "保留 0.5.0 的编辑、导入、发布、自动备份与版本冲突保护。"
+  "首次检测到新版本会自动打开更新提示，也可以勾选此版本不再提醒。",
+  "保留编辑、导入、发布、自动备份与版本冲突保护。"
 ];
 
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));

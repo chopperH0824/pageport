@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('pageportDesktop', {
     reveal: () => ipcRenderer.invoke('pageport:update-reveal'),
     release: () => ipcRenderer.invoke('pageport:update-release'),
     configure: automatic => ipcRenderer.invoke('pageport:update-configure', automatic),
+    ignore: ignored => ipcRenderer.invoke('pageport:update-ignore', ignored),
     subscribe: callback => {
       const listener = (_event, state) => callback(state);
       ipcRenderer.on('pageport:update-state', listener);

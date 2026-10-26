@@ -12,8 +12,9 @@ export default function UpdatePanel({ onRequestOpen, onAvailability }) {
     return () => { live = false; unsubscribe(); };
   }, [onRequestOpen]);
   useEffect(() => {
-    onAvailability(!!state?.available && state.status !== 'current');
-  }, [state?.available, state?.status, onAvailability]);
+    const available = !!state?.available && state.status !== 'current';
+    onAvailability(available && state.ignoredVersion !== state.version);
+  }, [state?.available, state?.status, state?.ignoredVersion, state?.version, onAvailability]);
   if (!state) return <p className="modal-subtitle" role="status">正在读取更新信息…</p>;
   const checking = state.status === 'checking', downloading = state.status === 'downloading';
   const available = state.available && state.status !== 'current';
@@ -30,10 +31,14 @@ export default function UpdatePanel({ onRequestOpen, onAvailability }) {
         {downloading && <div className="update-progress"><progress aria-label="安装包下载进度" max="100" value={state.progress}/><span role="status">{state.progress}%</span></div>}
         {state.status === 'downloaded' && <p className="update-verified" role="status"><CheckCircle2 size={16}/>安装包 SHA-256 校验通过</p>}
         {available && <p className="update-install-note">安装前请保存文档并正常退出 PagePort。更新不会清除本机页面备份。</p>}
-        <label className="checkbox-label update-preference"><input type="checkbox" checked={state.automatic !== false} onChange={async event => {
+        <label className="checkbox-label update-preference"><input aria-label="自动检查更新" type="checkbox" checked={state.automatic !== false} onChange={async event => {
           try { setState(await desktop.updates.configure(event.target.checked)); }
           catch { setState(value => ({ ...value, error: '无法保存更新设置。' })); }
         }}/><span>自动检查更新</span></label>
+        {available && <label className="checkbox-label update-preference"><input aria-label="此版本不再提醒" type="checkbox" checked={state.ignoredVersion === state.version} onChange={async event => {
+          try { setState(await desktop.updates.ignore(event.target.checked)); }
+          catch { setState(value => ({ ...value, error: '无法保存更新设置。' })); }
+        }}/><span>此版本不再提醒</span></label>}
         <div className="modal-actions">
           {available && state.installer && <button className="small-button" onClick={() => command('release')}><ArrowUpRight size={15}/>发布页</button>}
           <button className={available ? 'small-button' : 'primary'} aria-label="检查更新" disabled={checking || downloading} onClick={() => command('check')}>

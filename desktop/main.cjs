@@ -10,15 +10,20 @@ const { UpdateManager } = require('./updates.cjs');
 app.setName('PagePort');
 let backend, window, origin, updater;
 let automaticUpdates = true;
+let ignoredUpdateVersion = '';
 const openedFiles = new Map();
 const desktopToken = randomBytes(32).toString('hex');
 const smoke = process.argv.includes('--smoke');
 const appRoot = path.resolve(__dirname,'..');
 if(smoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'pageport-smoke-profile-')));
 
-function updateState() { return { ...updater.state, automatic: automaticUpdates }; }
+function updateState() { return { ...updater.state, automatic: automaticUpdates, ignoredVersion: ignoredUpdateVersion }; }
 function sendUpdateState(show = false) {
   if (window && !window.isDestroyed()) window.webContents.send('pageport:update-state', { ...updateState(), show });
+}
+async function saveUpdateSettings() {
+  await writeFile(path.join(app.getPath('userData'), 'update-settings.json'),
+    JSON.stringify({ automatic: automaticUpdates, ignoredVersion: ignoredUpdateVersion }), { mode: 0o600 });
 }
 for (const [action, handler] of Object.entries({
   state: () => updateState(),
@@ -28,8 +33,16 @@ for (const [action, handler] of Object.entries({
   release: () => { if (updater.state.releaseUrl) openExternal(updater.state.releaseUrl); return updateState(); },
   configure: async automatic => {
     if (typeof automatic !== 'boolean') throw new Error('Invalid update preference.');
-    await writeFile(path.join(app.getPath('userData'), 'update-settings.json'), JSON.stringify({ automatic }), { mode: 0o600 });
     automaticUpdates = automatic;
+    await saveUpdateSettings();
+    sendUpdateState();
+    return updateState();
+  },
+  ignore: async ignored => {
+    if (typeof ignored !== 'boolean') throw new Error('Invalid update preference.');
+    if (ignored && (!updater.state.available || !updater.state.version)) throw new Error('No update is available.');
+    ignoredUpdateVersion = ignored ? updater.state.version : '';
+    await saveUpdateSettings();
     sendUpdateState();
     return updateState();
   },
@@ -118,7 +131,11 @@ async function start() {
   const markName=process.platform==='win32'?'mark.exe':'mark';
   const mark=app.isPackaged ? path.join(process.resourcesPath,'bin',markName) : path.join(appRoot,'resources',markName);
   await mkdir(dataDir,{recursive:true,mode:0o700});
-  try { automaticUpdates = JSON.parse(await readFile(path.join(app.getPath('userData'), 'update-settings.json'), 'utf8')).automatic !== false; } catch {}
+  try {
+    const settings = JSON.parse(await readFile(path.join(app.getPath('userData'), 'update-settings.json'), 'utf8'));
+    automaticUpdates = settings.automatic !== false;
+    ignoredUpdateVersion = typeof settings.ignoredVersion === 'string' ? settings.ignoredVersion : '';
+  } catch {}
   updater = new UpdateManager({
     version: app.getVersion(), directory: path.join(app.getPath('userData'), 'updates'),
     fetcher: smoke ? async () => {
@@ -166,6 +183,16 @@ async function start() {
     if(choice===1)event.preventDefault();
   });
   const checkForUpdates = () => { sendUpdateState(true); updater.check(); };
+  let autoNotifiedVersion = '';
+  const checkAutomatically = async () => {
+    if (!automaticUpdates) return;
+    const state = await updater.check();
+    if (automaticUpdates && state.available && state.version !== ignoredUpdateVersion &&
+      autoNotifiedVersion !== state.version) {
+      autoNotifiedVersion = state.version;
+      sendUpdateState(true);
+    }
+  };
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     {label:'PagePort',submenu:[{role:'about'},{label:'检查更新…',click:checkForUpdates},{type:'separator'},{label:'打开备份文件夹',click:()=>shell.openPath(path.join(dataDir,'backups'))},{type:'separator'},...(process.platform==='darwin'?[{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'}]:[]),{role:'quit'}]},
     {label:'编辑',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},
@@ -174,8 +201,8 @@ async function start() {
   await window.loadURL(origin);
   if(!smoke)window.show();
   if(!smoke) {
-    setTimeout(() => { if (automaticUpdates) updater.check(); }, 10000).unref();
-    setInterval(() => { if (automaticUpdates) updater.check(); }, 6 * 60 * 60 * 1000).unref();
+    setTimeout(checkAutomatically, 10000).unref();
+    setInterval(checkAutomatically, 6 * 60 * 60 * 1000).unref();
   }
   app.on('activate',()=>{if(window){window.show();window.focus();}});
   backend.on('exit',()=>{if(window && !window.isDestroyed()){dialog.showErrorBox('本地服务已停止','请退出并重新打开 PagePort。');app.quit();}});
@@ -368,9 +395,17 @@ async function start() {
       while (updater.state.status !== 'downloaded' && Date.now()<downloadDeadline) await new Promise(resolve=>setTimeout(resolve,100));
       state.updates.downloaded = updater.state.status === 'downloaded' &&
         await window.webContents.executeJavaScript(`document.querySelector('.update-verified')?.textContent.includes('SHA-256')`);
-      await window.webContents.executeJavaScript(`document.querySelector('.update-preference input').click()`);
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="自动检查更新"]').click()`);
       await new Promise(resolve=>setTimeout(resolve,100));
       state.updates.preference = !automaticUpdates && JSON.parse(await readFile(path.join(app.getPath('userData'),'update-settings.json'),'utf8')).automatic === false;
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="此版本不再提醒"]').click()`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      const ignoredSettings = JSON.parse(await readFile(path.join(app.getPath('userData'),'update-settings.json'),'utf8'));
+      state.updates.ignore = ignoredSettings.ignoredVersion === '99.0.0' &&
+        await window.webContents.executeJavaScript(`document.querySelector('[aria-label="此版本不再提醒"]').checked`);
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="此版本不再提醒"]').click()`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      state.updates.unignore = !(JSON.parse(await readFile(path.join(app.getPath('userData'),'update-settings.json'),'utf8')).ignoredVersion);
       window.setSize(940,700);
       await new Promise(resolve=>setTimeout(resolve,200));
       state.updates.narrowOverflow = await window.webContents.executeJavaScript(`(() => {
@@ -390,7 +425,8 @@ async function start() {
         state.settings.actions.some(text=>text.includes('清除会话')) && state.settings.history && state.settings.cleanToolbar && state.settings.focused &&
         state.settings.keyboard && state.settings.focusTrap && state.settings.escape && state.settings.badge && state.settings.menu;
       state.updates.passed = state.updates.heading === 'PagePort 99.0.0' && state.updates.notes && state.updates.fallback && state.updates.focused &&
-        state.updates.downloaded && state.updates.preference && !state.updates.overflow && !state.updates.narrowOverflow;
+        state.updates.downloaded && state.updates.preference && state.updates.ignore && state.updates.unignore &&
+        !state.updates.overflow && !state.updates.narrowOverflow;
       window.setSize(1440,960);
       await new Promise(resolve=>setTimeout(resolve,100));
     }
