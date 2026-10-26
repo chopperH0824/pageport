@@ -10,6 +10,7 @@ const { UpdateManager, releaseInfo } = createRequire(import.meta.url)('../deskto
 const bytes = Buffer.from('verified mock installer');
 const sha256 = createHash('sha256').update(bytes).digest('hex');
 const base = 'https://github.com/chopperH0824/pageport';
+const releasePage = 'https://pageport.chopperh.me/#download';
 const asset = name => ({ name, state: 'uploaded', size: bytes.length, digest: `sha256:${sha256}`,
   browser_download_url: `${base}/releases/download/v0.4.0/${name}` });
 const release = overrides => ({ tag_name: 'v0.4.0', published_at: '2026-10-23T00:00:00Z',
@@ -25,6 +26,9 @@ test('release detection compares semver and selects only the matching platform a
     assert.equal(state.available, true);
     assert.equal(state.installer.name, name);
     assert.equal(state.installer.sha256, sha256);
+    assert.equal(state.installer.url, `${base}/releases/download/v0.4.0/${name}`);
+    assert.equal(state.releaseUrl, releasePage);
+    assert.doesNotMatch(state.releaseUrl, /github\.com/);
   }
   assert.equal(releaseInfo(release(), '0.4.0', 'darwin', 'arm64').available, false);
   assert.equal(releaseInfo(release(), '0.10.0', 'win32', 'x64').available, false);
@@ -47,7 +51,8 @@ test('untrusted asset URLs, names, digests and sizes fall back to the fixed rele
     { state: 'new' }]) {
     const info = releaseInfo(release({ assets: [{ ...original, ...value }] }), '0.3.1', 'darwin', 'arm64');
     assert.equal(info.installer, null);
-    assert.equal(info.releaseUrl, `${base}/releases/tag/v0.4.0`);
+    assert.equal(info.releaseUrl, releasePage);
+    assert.doesNotMatch(info.releaseUrl, /github\.com/);
   }
 });
 

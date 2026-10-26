@@ -48,7 +48,7 @@ Windows 支持 Markdown、HTML、DOCX、TXT、Confluence 网页导出的 Word，
 
 窗口显示版本、日期和更新说明，按当前系统和架构选择安装包。
 下载完成后核对 GitHub 提供的文件大小及 SHA-256，再允许在 Finder/资源管理器中查看。
-没有匹配安装包或可信摘要时只提供官方发布页入口，不执行未经校验的文件。
+「发布页」打开 https://pageport.chopperh.me/#download 。没有匹配安装包或可信摘要时也只打开这个下载页，不执行未经校验的文件。
 安装前请保存文档并正常退出应用，然后运行 Windows 安装包或用 DMG 替换 Mac 应用。
 不会静默安装、强制重启或清除页面备份。
 

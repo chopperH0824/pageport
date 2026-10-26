@@ -6,6 +6,7 @@ const semver = require('semver');
 
 const repository = 'https://github.com/chopperH0824/pageport';
 const endpoint = 'https://api.github.com/repos/chopperH0824/pageport/releases/latest';
+const releasePage = 'https://pageport.chopperh.me/#download';
 const maxInstallerSize = 1024 * 1024 * 1024;
 
 async function readLimited(response, limit) {
@@ -22,7 +23,7 @@ async function readLimited(response, limit) {
 function releaseInfo(release, currentVersion, platform, arch) {
   const version = semver.valid(release?.tag_name);
   if (!version || semver.prerelease(version) || release.draft || release.prerelease) throw new Error('无效版本。');
-  const releaseUrl = `${repository}/releases/tag/${encodeURIComponent(release.tag_name)}`;
+  const releaseUrl = releasePage;
   const name = platform === 'darwin' ? `PagePort-${version}-${arch}.dmg`
     : platform === 'win32' && arch === 'x64' ? `PagePort-${version}-x64-setup.exe` : '';
   const asset = Array.isArray(release.assets) ? release.assets.find(item => item.name === name && item.state === 'uploaded') : null;
