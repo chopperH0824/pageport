@@ -112,6 +112,26 @@ test('installer is streamed, checked, deduplicated and never executed', async t 
   assert.equal((await update.check()).status, 'downloaded');
 });
 
+test('configured official download host is used for the large installer', async t => {
+  let installerUrl = '';
+  const directory = await mkdtemp(path.join(tmpdir(), 'pageport-updates-mirror-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const update = new UpdateManager({
+    version: '0.3.1', platform: 'win32', arch: 'x64', directory,
+    downloadBase: 'https://pageport.chopperh.me/downloads',
+    fetcher: async (url, options) => {
+      if (url.includes('api.github.com')) return Response.json(release());
+      installerUrl = url;
+      assert.equal(options.redirect, 'error');
+      return new Response(bytes);
+    },
+  });
+  await update.check();
+  await update.download();
+  assert.equal(installerUrl, 'https://pageport.chopperh.me/downloads/PagePort-0.4.0-x64-setup.exe');
+  assert.equal(update.state.status, 'downloaded');
+});
+
 test('partial, oversized, corrupt and failed downloads leave no installer or partial files', async t => {
   for (const response of [
     () => new Response(bytes.subarray(1)),

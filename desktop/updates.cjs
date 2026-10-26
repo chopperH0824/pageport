@@ -7,6 +7,7 @@ const semver = require('semver');
 const repository = 'https://github.com/chopperH0824/pageport';
 const endpoint = 'https://api.github.com/repos/chopperH0824/pageport/releases/latest';
 const releasePage = 'https://pageport.chopperh.me/#download';
+const downloadBase = 'https://pageport.chopperh.me/downloads';
 const maxInstallerSize = 1024 * 1024 * 1024;
 
 async function readLimited(response, limit) {
@@ -40,9 +41,9 @@ function releaseInfo(release, currentVersion, platform, arch) {
 }
 
 class UpdateManager extends EventEmitter {
-  constructor({ version, platform = process.platform, arch = process.arch, directory, fetcher = fetch }) {
+  constructor({ version, platform = process.platform, arch = process.arch, directory, fetcher = fetch, downloadBase: installerBase = '' }) {
     super();
-    this.options = { version, platform, arch, directory, fetcher };
+    this.options = { version, platform, arch, directory, fetcher, downloadBase: installerBase };
     this.state = { status: 'idle', currentVersion: version };
   }
   set(patch) {
@@ -82,9 +83,16 @@ class UpdateManager extends EventEmitter {
         await mkdir(this.options.directory, { recursive: true, mode: 0o700 });
         partial = path.join(this.options.directory, `${randomUUID()}.partial`);
         handle = await open(partial, 'wx', 0o600);
-        const response = await this.options.fetcher(installer.url, { signal: AbortSignal.timeout(10 * 60 * 1000) });
+        // Large installers come from the official download host; Release metadata still supplies
+        // the expected size and digest, so the package cannot be accepted if the mirror is stale.
+        const installerUrl = this.options.downloadBase
+          ? `${this.options.downloadBase}/${encodeURIComponent(installer.name)}`
+          : installer.url;
+        const response = await this.options.fetcher(installerUrl, {
+          signal: AbortSignal.timeout(10 * 60 * 1000), redirect: 'error',
+        });
         if (!response.ok) throw new Error('下载失败。');
-        // Only this fixed GitHub release asset is requested. Redirects carry no credentials.
+        // Only the fixed official download-host path for this verified Release asset is requested.
         let bytes = 0, lastProgress = -1;
         const digest = createHash('sha256');
         for await (const chunk of response.body) {

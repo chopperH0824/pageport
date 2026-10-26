@@ -190,6 +190,7 @@ async function start() {
   } catch {}
   updater = new UpdateManager({
     version: app.getVersion(), directory: path.join(app.getPath('userData'), 'updates'),
+    downloadBase: 'https://pageport.chopperh.me/downloads',
     fetcher: smoke ? async () => {
       if (!process.argv.includes('--smoke-updates')) throw new Error('Network disabled during smoke tests.');
       return Response.json({ tag_name: 'v99.0.0', body: '更新检测测试\n\n• 改进文档编辑与跨平台兼容。\n• 安装包按当前系统匹配。', published_at: '2026-10-23T00:00:00Z', assets: [] });
