@@ -1,9 +1,9 @@
 {
   "product": "PagePort",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "releaseDate": "2026-10-26",
   "engine": "Mark 16.22.0 Built-in",
-  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.5.2",
+  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.5.3",
   "githubRepoUrl": "https://github.com/chopperH0824/pageport",
   "highlights": [
     "设置里的「发布页」打开 pageport.chopperh.me 下载区，便于在国内直接下载。",
@@ -18,14 +18,14 @@
       "arch": "arm64",
       "label": "macOS",
       "detail": "Apple Silicon · macOS 13+",
-      "filename": "PagePort-0.5.2-arm64.dmg",
+      "filename": "PagePort-0.5.3-arm64.dmg",
       "latestAlias": "PagePort-latest-arm64.dmg",
-      "sizeBytes": 167309005,
+      "sizeBytes": 167310190,
       "sizeFormatted": "159.6 MB",
-      "sha256": "9c05d2b39026e5f74e7355473fa1ffde549dcfd240ca86ba54cb3f80a4b94f5d",
-      "directDownloadUrl": "/downloads/PagePort-0.5.2-arm64.dmg",
-      "versionedDownloadUrl": "/downloads/PagePort-0.5.2-arm64.dmg",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.5.2/PagePort-0.5.2-arm64.dmg"
+      "sha256": "e766ee4d77a7c852c14a1aef98e9473ca7bec9ca8d7d9f2492c9def007b65796",
+      "directDownloadUrl": "/downloads/PagePort-0.5.3-arm64.dmg",
+      "versionedDownloadUrl": "/downloads/PagePort-0.5.3-arm64.dmg",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.5.3/PagePort-0.5.3-arm64.dmg"
     },
     {
       "id": "windows",
@@ -33,14 +33,14 @@
       "arch": "x64",
       "label": "Windows",
       "detail": "Windows 10/11 x64",
-      "filename": "PagePort-0.5.2-x64-setup.exe",
+      "filename": "PagePort-0.5.3-x64-setup.exe",
       "latestAlias": "PagePort-latest-x64-setup.exe",
-      "sizeBytes": 135537805,
+      "sizeBytes": 135538984,
       "sizeFormatted": "129.3 MB",
-      "sha256": "5c3ccbf20a477193f4895451a5e66cb34bce9ab70d38735e81cc16af718bd7a5",
-      "directDownloadUrl": "/downloads/PagePort-0.5.2-x64-setup.exe",
-      "versionedDownloadUrl": "/downloads/PagePort-0.5.2-x64-setup.exe",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.5.2/PagePort-0.5.2-x64-setup.exe"
+      "sha256": "52e30c7ae568bfdd7ec40e9cc171b2ce1c255e37de9b72a5067d7b94318a32c2",
+      "directDownloadUrl": "/downloads/PagePort-0.5.3-x64-setup.exe",
+      "versionedDownloadUrl": "/downloads/PagePort-0.5.3-x64-setup.exe",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.5.3/PagePort-0.5.3-x64-setup.exe"
     }
   ]
 }
