@@ -24,10 +24,10 @@ const latestJsonPath = path.join(siteDir, "downloads", "latest.json");
 const indexPath = path.join(siteDir, "index.html");
 
 const HIGHLIGHTS = [
-  "更新检查改为 GitHub API + 官方镜像双通道：GitHub 限流或不可用时自动改用 pageport.chopperh.me，不再直接报错。",
-  "镜像返回的版本、来源、文件名、大小与 SHA-256 都会校验，安装包下载后仍做完整摘要校验。",
-  "保留「新建空白文档」、侧栏展开按钮就近显示、本机备份载入编辑区等 0.5.7 功能。",
-  "更新面板会标明本次检查走的是 GitHub 还是官方镜像。"
+  "修复 Windows 下载完成后无法显示安装器的问题：现在直接启动已校验的安装程序。",
+  "更新检查继续支持 GitHub API + pageport.chopperh.me 官方镜像双通道。",
+  "保留「新建空白文档」、侧栏展开按钮就近显示、本机备份载入编辑区等功能。",
+  "Windows 取消安装或启动失败时仍保留已下载的安装包，方便重试。"
 ];
 const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 
