@@ -41,7 +41,10 @@ Windows 支持 Markdown、HTML、DOCX、TXT、Confluence 网页导出的 Word，
 
 ## 检查更新
 
-安装 0.4.0 后，启动约 10 秒及运行期间每 6 小时检查一次公开 GitHub 最新正式 Release。
+安装后，启动约 10 秒及运行期间每 6 小时检查一次最新正式版本。
+检查优先请求 GitHub API；在国内网络常见 API 限流、超时或被拦截时，自动改用官方镜像
+`https://pageport.chopperh.me/downloads/latest.json`。镜像返回的版本、来源链接、安装包文件名、
+大小与 SHA-256 都会校验，安装包下载完成后仍会做完整摘要核对。
 也可使用应用菜单“PagePort → 检查更新…”或右上角“设置 → 软件更新”。
 后台检查只显示新版本标记，不弹窗打断编辑；网络失败不影响工作。
 更新窗口可关闭自动检查，手动检查仍然可用。
@@ -204,7 +207,7 @@ Mac 资产命名为 `PagePort-版本-arm64.dmg`（Intel 对应 `x64`），
 Windows 为 `PagePort-版本-x64-setup.exe`，必须与版本 tag 一致。
 Windows 安装程序可从该提交成功 CI 的 `pageport-windows-x64` artifact 获取。
 上传完成后核对版本、tag 指向、大小和 GitHub asset digest，并公布 `SHA256SUMS.txt`。
-检测客户端以 GitHub API 的 asset digest 为准，摘要文件供人工核验，不替代代码签名。
+检测客户端以 GitHub API 的 asset digest 为准（GitHub 不可用时以官方镜像 `latest.json` 中的大小与 SHA-256 为准），摘要文件供人工核验，不替代代码签名。
 建议所有资产上传并核验后才将 Release 从草稿发布，以免用户过早收到不完整版本。
 
 ## 可选 Web 模式

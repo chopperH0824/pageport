@@ -24,10 +24,10 @@ const latestJsonPath = path.join(siteDir, "downloads", "latest.json");
 const indexPath = path.join(siteDir, "index.html");
 
 const HIGHLIGHTS = [
-  "新增「新建空白文档」：无需准备文件，直接从空白页开始编辑和发布。",
-  "收起文档栏后，展开按钮紧挨在标题左侧，不再跑到窗口另一端。",
-  "「本机备份」点“载入编辑区”会把快照放回编辑器预览，确认后再走正常发布流程，不会直接改写线上页面。",
-  "备份默认保留 7 天，可改为自定义天数或永不自动删除；升级前的旧备份不会被静默清理。"
+  "更新检查改为 GitHub API + 官方镜像双通道：GitHub 限流或不可用时自动改用 pageport.chopperh.me，不再直接报错。",
+  "镜像返回的版本、来源、文件名、大小与 SHA-256 都会校验，安装包下载后仍做完整摘要校验。",
+  "保留「新建空白文档」、侧栏展开按钮就近显示、本机备份载入编辑区等 0.5.7 功能。",
+  "更新面板会标明本次检查走的是 GitHub 还是官方镜像。"
 ];
 const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 

@@ -29,6 +29,7 @@ export default function UpdatePanel({ onRequestOpen, onAvailability }) {
         <h2 id="update-heading">{checking ? '正在检查更新' : installing ? '安装程序已打开' : installed ? '更新已安装' : available ? `PagePort ${state.version}` : state.status === 'current' ? '已是最新版本' : '检查更新'}</h2>
         <p className="modal-subtitle">当前版本 {state.currentVersion}{state.publishedAt && available ? ` · 发布于 ${new Date(state.publishedAt).toLocaleDateString('zh-CN')}` : ''}</p>
         {available && state.notes && <pre className="update-notes">{state.notes}</pre>}
+        {state.checkedVia === 'mirror' && !state.error && <p className="update-source-note" role="status">GitHub API 暂不可用（常见于限流或未使用代理），已通过 pageport.chopperh.me 官方镜像完成检查；安装包仍会校验 SHA-256。</p>}
         {state.error && <p className="update-error" role="alert">{state.error}</p>}
         {downloading && <div className="update-progress"><progress aria-label="安装包下载进度" max="100" value={state.progress}/><span role="status">{state.progress}%</span></div>}
         {state.status === 'downloaded' && <p className="update-verified" role="status"><CheckCircle2 size={16}/>安装包 SHA-256 校验通过</p>}

@@ -28,3 +28,4 @@
 .page-heading .expand-side{margin-left:-6px}
 .backup-restore-note{margin:16px 0 0;padding:10px 12px;border-radius:5px;background:#f3f8f6;color:#6a8880;font-size:10px;line-height:1.8}
 @media(max-width:700px){.empty-blank{height:44px}}
+.update-source-note{margin-top:12px;font-size:11px;line-height:1.7;color:#6d8880;background:#f3f8f6;border-radius:5px;padding:9px 11px}

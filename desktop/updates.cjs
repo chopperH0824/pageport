@@ -8,6 +8,7 @@ const repository = 'https://github.com/chopperH0824/pageport';
 const endpoint = 'https://api.github.com/repos/chopperH0824/pageport/releases/latest';
 const releasePage = 'https://pageport.chopperh.me/#download';
 const downloadBase = 'https://pageport.chopperh.me/downloads';
+const officialHost = 'pageport.chopperh.me';
 const maxInstallerSize = 1024 * 1024 * 1024;
 
 async function readLimited(response, limit) {
@@ -40,6 +41,35 @@ function releaseInfo(release, currentVersion, platform, arch) {
   };
 }
 
+// Fallback used when api.github.com is blocked, rate limited or slow (common
+// on mainland networks). The official download host is already trusted for the
+// installers themselves; its metadata must still name a valid semver release,
+// point at the matching GitHub tag and carry a complete size/SHA-256 pair.
+function mirrorInfo(meta, currentVersion, platform, arch, base) {
+  let origin;
+  try { origin = new URL(base); } catch { throw new Error('镜像地址无效。'); }
+  if (origin.protocol !== 'https:' || origin.hostname !== officialHost) throw new Error('镜像地址无效。');
+  const version = semver.valid(meta?.version);
+  if (!version || semver.prerelease(version)) throw new Error('无效版本。');
+  if (meta.githubReleaseUrl !== `${repository}/releases/tag/v${version}`) throw new Error('版本来源不一致。');
+  const name = platform === 'darwin' ? `PagePort-${version}-${arch}.dmg`
+    : platform === 'win32' && arch === 'x64' ? `PagePort-${version}-x64-setup.exe` : '';
+  const asset = Array.isArray(meta.assets) ? meta.assets.find(item => item?.filename === name) : null;
+  const size = asset?.sizeBytes, digest = String(asset?.sha256 || '');
+  const url = `${base.replace(/\/+$/, '')}/${encodeURIComponent(name)}`;
+  const installer = asset &&
+    /^[a-f0-9]{64}$/.test(digest) &&
+    Number.isSafeInteger(size) && size > 0 && size <= maxInstallerSize &&
+    asset.githubDownloadUrl === `${repository}/releases/download/v${version}/${name}`
+    ? { name, url, size, sha256: digest } : null;
+  return {
+    available: semver.gt(version, currentVersion), version, releaseUrl: releasePage, installer,
+    notes: Array.isArray(meta.highlights) ? meta.highlights.filter(item => typeof item === 'string').join('\n').slice(0, 12000) : '',
+    publishedAt: Number.isFinite(Date.parse(meta.releaseDate)) ? `${meta.releaseDate}T00:00:00Z` : null,
+    checkedVia: 'mirror',
+  };
+}
+
 class UpdateManager extends EventEmitter {
   constructor({ version, platform = process.platform, arch = process.arch, directory, fetcher = fetch, downloadBase: installerBase = '' }) {
     super();
@@ -57,17 +87,34 @@ class UpdateManager extends EventEmitter {
     this.set({ status: 'checking', error: '' });
     this.checking = (async () => {
       try {
-        const response = await this.options.fetcher(endpoint, {
-          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'PagePort', 'X-GitHub-Api-Version': '2022-11-28' },
-          signal: AbortSignal.timeout(15000), redirect: 'error',
-        });
-        if (!response.ok) throw new Error('检查失败。');
-        const release = releaseInfo(JSON.parse((await readLimited(response, 256 * 1024)).toString('utf8')),
-          this.options.version, this.options.platform, this.options.arch);
+        let release;
+        try {
+          const response = await this.options.fetcher(endpoint, {
+            headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'PagePort', 'X-GitHub-Api-Version': '2022-11-28' },
+            signal: AbortSignal.timeout(15000), redirect: 'error',
+          });
+          if (!response.ok) throw new Error('GitHub 检查失败。');
+          release = { ...releaseInfo(JSON.parse((await readLimited(response, 256 * 1024)).toString('utf8')),
+            this.options.version, this.options.platform, this.options.arch), checkedVia: 'github' };
+        } catch {
+          // api.github.com is frequently blocked or rate limited on mainland
+          // networks even when github.com itself loads. The official download host
+          // publishes the same release metadata, so fall back to it.
+          try {
+            if (!this.options.downloadBase) throw new Error('未配置镜像。');
+            const response = await this.options.fetcher(`${this.options.downloadBase}/latest.json`, {
+              headers: { Accept: 'application/json', 'User-Agent': 'PagePort' },
+              signal: AbortSignal.timeout(12000), redirect: 'error',
+            });
+            if (!response.ok) throw new Error('镜像检查失败。');
+            release = mirrorInfo(JSON.parse((await readLimited(response, 256 * 1024)).toString('utf8')),
+              this.options.version, this.options.platform, this.options.arch, this.options.downloadBase);
+          } catch {
+            return this.set({ status: 'error', error: '暂时无法检查更新：GitHub 与官方镜像均不可用，请检查网络后重试。' });
+          }
+        }
         const sameDownload = this.downloaded?.sha256 === release.installer?.sha256 && this.downloaded?.version === release.version;
         return this.set({ ...release, status: release.available ? (sameDownload ? 'downloaded' : 'available') : 'current', checkedAt: Date.now(), progress: 0 });
-      } catch {
-        return this.set({ status: 'error', error: '无法连接 GitHub 检查更新，请检查网络后重试。' });
       } finally { this.checking = null; }
     })();
     return this.checking;
@@ -127,4 +174,4 @@ class UpdateManager extends EventEmitter {
   }
 }
 
-module.exports = { UpdateManager, releaseInfo };
+module.exports = { UpdateManager, releaseInfo, mirrorInfo };

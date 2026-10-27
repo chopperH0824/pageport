@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
-const { UpdateManager, releaseInfo } = createRequire(import.meta.url)('../desktop/updates.cjs');
+const { UpdateManager, releaseInfo, mirrorInfo } = createRequire(import.meta.url)('../desktop/updates.cjs');
 const bytes = Buffer.from('verified mock installer');
 const sha256 = createHash('sha256').update(bytes).digest('hex');
 const base = 'https://github.com/chopperH0824/pageport';
@@ -56,6 +56,20 @@ test('untrusted asset URLs, names, digests and sizes fall back to the fixed rele
   }
 });
 
+const officialBase = 'https://pageport.chopperh.me/downloads';
+const mirror = (overrides = {}) => ({
+  product: 'PagePort', version: '0.4.0', releaseDate: '2026-10-23',
+  githubReleaseUrl: `${base}/releases/tag/v0.4.0`,
+  highlights: ['镜像检查提示'],
+  assets: [
+    { filename: 'PagePort-0.4.0-arm64.dmg', sizeBytes: bytes.length, sha256,
+      githubDownloadUrl: `${base}/releases/download/v0.4.0/PagePort-0.4.0-arm64.dmg` },
+    { filename: 'PagePort-0.4.0-x64-setup.exe', sizeBytes: bytes.length, sha256,
+      githubDownloadUrl: `${base}/releases/download/v0.4.0/PagePort-0.4.0-x64-setup.exe` },
+  ],
+  ...overrides,
+});
+
 async function manager(t, fetcher) {
   const directory = await mkdtemp(path.join(tmpdir(), 'pageport-updates-test-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
@@ -91,6 +105,71 @@ test('network, HTTP, malformed and oversized metadata errors remain recoverable'
     update.options.fetcher = async () => Response.json(release());
     assert.equal((await update.check()).status, 'available');
   }
+});
+
+test('mirror metadata is validated before it can become an update', () => {
+  assert.equal(mirrorInfo(mirror(), '0.3.1', 'win32', 'x64', officialBase).installer.name, 'PagePort-0.4.0-x64-setup.exe');
+  assert.equal(mirrorInfo(mirror(), '0.4.0', 'win32', 'x64', officialBase).available, false);
+  for (const value of [{ version: 'latest' }, { version: '0.5.0-beta.1' },
+    { githubReleaseUrl: 'https://github.com/evil/repo/releases/tag/v0.4.0' },
+    { githubReleaseUrl: `${base}/releases/tag/v0.3.0` }]) {
+    assert.throws(() => mirrorInfo(mirror(value), '0.3.1', 'win32', 'x64', officialBase));
+  }
+  for (const value of [
+    { assets: [] },
+    { assets: [{ ...mirror().assets[1], sha256: 'bad' }] },
+    { assets: [{ ...mirror().assets[1], sizeBytes: 0 }] },
+    { assets: [{ ...mirror().assets[1], sizeBytes: 2 ** 40 }] },
+    { assets: [{ ...mirror().assets[1], githubDownloadUrl: 'https://evil.example/x.exe' }] },
+  ]) {
+    const info = mirrorInfo(mirror(value), '0.3.1', 'win32', 'x64', officialBase);
+    assert.equal(info.installer, null);
+  }
+  assert.throws(() => mirrorInfo(mirror(), '0.3.1', 'win32', 'x64', 'https://evil.example/downloads'));
+  assert.throws(() => mirrorInfo(mirror(), '0.3.1', 'win32', 'x64', 'http://pageport.chopperh.me/downloads'));
+});
+
+test('GitHub API failures fall back to the official mirror metadata', async t => {
+  const official = await mkdtemp(path.join(tmpdir(), 'pageport-updates-mirror-fallback-'));
+  t.after(() => rm(official, { recursive: true, force: true }));
+  for (const github of [
+    async () => { throw new Error('network unreachable'); },
+    async () => new Response('{}', { status: 403 }),
+    async () => new Response('not JSON'),
+  ]) {
+    const urls = [];
+    const update = new UpdateManager({
+      version: '0.3.1', platform: 'win32', arch: 'x64', directory: official,
+      downloadBase: officialBase,
+      fetcher: async (url, options) => {
+        urls.push(url);
+        if (url.includes('api.github.com')) return github();
+        assert.equal(url, `${officialBase}/latest.json`);
+        assert.equal(options.redirect, 'error');
+        return Response.json(mirror());
+      },
+    });
+    const result = await update.check();
+    assert.equal(result.status, 'available');
+    assert.equal(result.version, '0.4.0');
+    assert.equal(result.checkedVia, 'mirror');
+    assert.equal(result.installer.sha256, sha256);
+    assert.equal(result.installer.url, `${officialBase}/PagePort-0.4.0-x64-setup.exe`);
+    assert.match(result.notes, /镜像检查提示/);
+    assert.equal(urls.length, 2);
+  }
+});
+
+test('the mirror is not queried while the GitHub API works', async t => {
+  const urls = [];
+  const update = await manager(t, async url => {
+    urls.push(url);
+    return Response.json(release());
+  });
+  const result = await update.check();
+  assert.equal(result.status, 'available');
+  assert.equal(result.checkedVia, 'github');
+  assert.deepEqual(urls, ['https://api.github.com/repos/chopperH0824/pageport/releases/latest']);
 });
 
 test('installer is streamed, checked, deduplicated and never executed', async t => {
