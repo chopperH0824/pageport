@@ -24,10 +24,10 @@ const latestJsonPath = path.join(siteDir, "downloads", "latest.json");
 const indexPath = path.join(siteDir, "index.html");
 
 const HIGHLIGHTS = [
-  "设置里的「发布页」打开 pageport.chopperh.me 下载区，便于在国内直接下载。",
-  "安装包仍按当前系统从官方 Release 下载，并校验文件大小与 SHA-256。",
-  "首次检测到新版本会自动打开更新提示，也可以勾选此版本不再提醒。",
-  "保留编辑、导入、发布、自动备份与版本冲突保护。"
+  "新增「本机备份」面板：查看、下载发布前的原页面备份，并可直接恢复。",
+  "恢复前重新读取线上页面并核对标题与版本，先保存当前页面再替换正文并回读核对。",
+  "备份默认保留 7 天，可改为自定义天数或永不自动删除；升级前的旧备份不会被静默清理。",
+  "专注模式新增始终可见的「退出专注模式」入口，侧栏收起后也能随时恢复。"
 ];
 const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 
