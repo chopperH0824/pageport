@@ -44,6 +44,7 @@ const blockStyle = {'text-align':[/^(left|center|right|justify)$/], 'margin-left
 const cellStyle = {'text-align':[/^(left|center|right|justify)$/], 'background-color':colorValue, color:colorValue, width:[/^\d+(?:\.\d+)?%$/]};
 const panelTypes = new Set(['info','tip','note','warning']);
 const statusColours = {grey:'Grey',blue:'Blue',green:'Green',yellow:'Yellow',red:'Red'};
+export const HTML_IMPORT_WARNING = 'HTML 保留支持的表格与内容结构；脚本、样式表、表单、嵌入页面及不受支持的标签会被清理。';
 const DEFAULT_HIGHLIGHT = 'rgb(255, 250, 179)';
 const isColor = value => colorValue.some(pattern => pattern.test(value || ''));
 
@@ -153,7 +154,7 @@ async function compileMark(html, scratchRoot = tmpdir()) {
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
 
-export async function convertDocument(file, imageFiles = [], scratchRoot) {
+export async function convertDocument(file, imageFiles = [], scratchRoot, { allowEmpty = false } = {}) {
   const ext = path.extname(file.originalname).toLowerCase();
   if (!['.md','.markdown','.html','.htm','.docx','.doc','.txt'].includes(ext)) throw new AppError('该格式暂不支持。支持 .md、.markdown、.html、.htm、.docx、.doc 和 .txt；请将其他格式另存为 DOCX。');
   const warnings = [], blockers = [], assets = [];
@@ -229,7 +230,7 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
       if (/```(?:mermaid|math|latex)\b|\$\$/.test(safeSource)) warnings.push('公式与 Mermaid 图暂不渲染，保留为源码或代码块，请核对后发布。');
     } else if (['.html','.htm'].includes(ext)) {
       html = source;
-      warnings.push('HTML 保留支持的表格与内容结构；脚本、样式表、表单、嵌入页面及不受支持的标签会被清理。');
+      warnings.push(HTML_IMPORT_WARNING);
     } else if (ext === '.txt') {
       html = source.split(/\n\s*\n/).map(text => `<p>${escape(text).replaceAll('\n','<br />')}</p>`).join('\n');
     } else throw new AppError('支持 .md、.markdown、.html、.htm、.docx、.doc 和 .txt；PDF 暂不支持。');
@@ -301,7 +302,21 @@ export async function convertDocument(file, imageFiles = [], scratchRoot) {
   if (raw('pre').length) warnings.push('代码块使用纯文本兼容显示，保留缩进与换行，不启用旧版代码宏高亮。');
   // Mark ends a <div> HTML block at the first blank line, which would split code blocks inside panels.
   const content = cleanHtml(raw('body').html() || '').replace(/<pre\b[\s\S]*?<\/pre>/g, block => block.replace(/\n/g, '&#10;'));
-  if (!load(content).text().trim() && !assets.length && !raw('div[data-pageport-toc="true"]').length) throw new AppError('文档没有可发布的内容。');
+  const contentTree = load(content);
+  if (!contentTree.text().trim() && !assets.length && !raw('div[data-pageport-toc="true"]').length) {
+    if (!allowEmpty) throw new AppError('文档没有可发布的内容。');
+    // A cleared draft has no meaningful nodes. Mark would compile it to an
+    // empty document; the editor instead expects a stable empty paragraph.
+    if (!contentTree('table,hr,pre,blockquote,ul,ol,img,div[data-pageport-toc]').length && !blockers.length) {
+      const storage = '<p></p>', preview = '<p></p>';
+      return {
+        title, source, storage, preview, assets,
+        warnings: [...new Set(warnings)], blockers: [...new Set(blockers)],
+        stats: { headings: 0, tables: 0, images: 0, characters: 0 },
+        digest: hash(storage),
+      };
+    }
+  }
   const compiled = await compileMark(content, scratchRoot);
   const $ = load(cleanHtml(compiled), { xmlMode: true });
   $('script,style').remove();

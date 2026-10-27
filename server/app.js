@@ -5,8 +5,9 @@ import { rateLimit } from 'express-rate-limit';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, writeFile, readFile, readdir, lstat, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import { AppError } from './convert.js';
+import { AppError, HTML_IMPORT_WARNING } from './convert.js';
 import { isolatedConversion } from './conversion.js';
+import { storageToEditorHtml } from './storage-import.js';
 import { parseTarget, credentials, createConfluenceClient, validateSnapshot, summarizePage, assertUnchanged, contentSignature } from './confluence.js';
 
 const random = () => randomBytes(24).toString('hex');
@@ -14,6 +15,7 @@ const DEFAULT_BACKUP_RETENTION_DAYS = 7;
 const BACKUP_SETTINGS_FILE = 'backup-settings.json';
 const BACKUP_NAME_RE = /^(\d{1,20})-v(\d+)-(\d{13})-([a-f0-9]{8})\.json$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const BACKUP_IMPORT_WARNING = '已从本机备份载入编辑区：这是本地副本，Confluence 宏与附件图片可能无法完整还原，请核对预览后再发布。';
 const safeEqual = (a,b) => {
   const x = Buffer.from(a || ''), y = Buffer.from(b || '');
   return x.length === y.length && timingSafeEqual(x,y);
@@ -121,6 +123,14 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
   if (production && accessPassword.length < 16) throw new Error('Production requires ACCESS_PASSWORD with at least 16 characters.');
   const app = express(), sessions = new Map();
   let activeConversions = 0;
+  // One conversion worker at a time per slot; shared by uploads and by loading
+  // a local backup into the editor.
+  const conversionSlot = (req,res,next) => {
+    if (activeConversions >= 2) return next(new AppError('转换任务较多，请稍后再试。',503));
+    activeConversions++;
+    res.once('close',()=>{ activeConversions--; });
+    next();
+  };
   app.disable('x-powered-by');
   if (desktopToken) app.use((req,res,next)=>safeEqual(req.get('X-PagePort-Desktop'),desktopToken) ? next() : res.status(403).json({error:'仅允许 PagePort 本地应用访问。'}));
   if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 'loopback');
@@ -139,7 +149,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
       for (const [key,value] of sessions) if (value.expires < Date.now()) sessions.delete(key);
       if (sessions.size >= 100) return next(new AppError('当前会话较多，请稍后再试。',503));
       const id = random();
-      s = { id, csrf: random(), authenticated: !!desktopToken || !accessPassword, expires: Date.now()+sessionLifetime, documents: new Map(), plans: new Map(), restorePlans: new Map() };
+      s = { id, csrf: random(), authenticated: !!desktopToken || !accessPassword, expires: Date.now()+sessionLifetime, documents: new Map(), plans: new Map() };
       sessions.set(id,s);
       res.cookie('pageport',id,{httpOnly:true,secure:production && !desktopToken,sameSite:'strict',maxAge:sessionLifetime,path:'/'});
     }
@@ -172,17 +182,14 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
     const length = Number(req.get('content-length'));
     if (!Number.isSafeInteger(length) || length <= 0) return next(new AppError('上传必须包含有效的文件大小。',411));
     if (length > 21*1024*1024) return next(new AppError('上传总大小不能超过 20 MB。',413));
-    if (activeConversions >= 2) return next(new AppError('转换任务较多，请稍后再试。',503));
-    activeConversions++;
-    res.once('close',()=>{ activeConversions--; });
     next();
-  }, upload.fields([{name:'document',maxCount:1},{name:'images',maxCount:24}]),async(req,res,next)=>{
+  }, conversionSlot, upload.fields([{name:'document',maxCount:1},{name:'images',maxCount:24}]),async(req,res,next)=>{
     try {
       if (!req.files?.document?.[0]) throw new AppError('请先选择一个文档。');
       req.session.plans.clear();
       const files = [req.files.document[0],...(req.files.images || [])];
       if (files.reduce((n,f)=>n+f.size,0)>20*1024*1024) throw new AppError('文档和图片的总大小不能超过 20 MB。');
-      const document = await isolatedConversion(files[0],req.files.images || []);
+      const document = await isolatedConversion(files[0],req.files.images || [],{allowEmpty:req.query.allowEmpty==='1'});
       document.bytes = Buffer.byteLength(document.source + document.storage + document.preview) + document.assets.reduce((n,a)=>n+a.buffer.length,0);
       const retainedBytes = [...sessions.values()].reduce((n,s)=>n+[...s.documents.values()].reduce((m,d)=>m+d.bytes,0),0);
       if (retainedBytes+document.bytes > 128*1024*1024) throw new AppError('当前文档存储已满，请清除会话或稍后再试。',503);
@@ -192,6 +199,21 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
       req.session.documents.set(id,document);
       res.json({id,name:document.name,title:document.title,preview:document.preview,source:document.source,warnings:document.warnings,blockers:document.blockers,stats:document.stats});
     } catch(err) { next(err); }
+  });
+  app.post('/api/documents/blank',(req,res)=>{
+    // Local-only placeholder: no Mark run, no network call, nothing retained
+    // beyond this session. The editor starts from a stable empty paragraph.
+    const document = {
+      name:'未命名文档.md', title:'未命名文档', source:'', storage:'<p></p>', preview:'<p></p>',
+      assets:[], warnings:[], blockers:[], allowEmpty:true,
+      stats:{headings:0,tables:0,images:0,characters:0},
+    };
+    document.bytes = Buffer.byteLength(document.source + document.storage + document.preview);
+    const id = random();
+    req.session.plans.clear();
+    req.session.documents.clear();
+    req.session.documents.set(id,document);
+    res.json({id,name:document.name,title:document.title,preview:document.preview,source:document.source,warnings:document.warnings,blockers:document.blockers,stats:document.stats,allowEmpty:true});
   });
   app.get('/api/documents/:id/storage',(req,res,next)=>{
     const doc = req.session.documents.get(req.params.id);
@@ -249,73 +271,42 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
       res.type('application/json').attachment(record.name).send(JSON.stringify(record.snapshot,null,2));
     } catch(err) { next(err); }
   });
-  app.post('/api/backups/:name/restore-check',upstreamLimit,async(req,res,next)=>{
+  app.post('/api/backups/:name/open',conversionSlot,async(req,res,next)=>{
     try {
-      const body = req.body || {};
-      let hosts = allowedHosts;
-      if (desktopToken) {
-        try { hosts = [new URL(body.url).hostname]; } catch { throw new AppError('请输入完整的 HTTPS Confluence 页面链接。'); }
-      }
-      const auth = credentials(body), target = parseTarget(body.url,hosts);
       const record = await readBackup(dataDir,req.params.name);
-      validateSnapshot(record.snapshot,target);
-      if (String(record.snapshot.id) !== target.id) throw new AppError('备份与目标页面不匹配。',409);
-      const client = createConfluenceClient(auth,target,fetcher);
-      const current = await client.read();
-      validateSnapshot(current,target);
-      const token = random();
-      req.session.restorePlans.clear();
-      req.session.restorePlans.set(token,{name:req.params.name,target,current,username:auth.username,expires:Date.now()+5*60*1000,busy:false});
-      res.json({token,expiresIn:300,target:{id:target.id,title:current.title,version:current.version.number,url:target.url},backup:{name:record.name,id:record.parsed.id,version:record.parsed.version,title:typeof record.snapshot.title==='string'?record.snapshot.title:'',createdAt:new Date(record.parsed.timestamp).toISOString(),size:record.size}});
+      const snapshot = record.snapshot || {};
+      const storage = snapshot.body?.storage?.value;
+      if (typeof storage !== 'string') throw new AppError('备份文件损坏，无法恢复。',422);
+      const imported = storageToEditorHtml(storage);
+      // Loading a backup is local-only: no credentials are accepted or used,
+      // and no Confluence request is made. The target page is untouched until
+      // the user reviews the draft and publishes through the normal flow.
+      const document = await isolatedConversion(
+        { originalname:'backup-editor-import.html', buffer:Buffer.from(imported.html,'utf8') }, [], { allowEmpty:true },
+      );
+      const title = typeof snapshot.title === 'string' && snapshot.title.trim() ? snapshot.title.trim() : '未命名文档';
+      document.name = record.name;
+      document.title = title;
+      document.bytes = Buffer.byteLength(document.source + document.storage + document.preview) + document.assets.reduce((n,a)=>n+a.buffer.length,0);
+      document.warnings = [...new Set([
+        BACKUP_IMPORT_WARNING,
+        ...imported.warnings,
+        ...document.warnings.filter(warning => warning !== HTML_IMPORT_WARNING),
+      ])];
+      const id = random();
+      req.session.plans.clear();
+      req.session.documents.clear();
+      req.session.documents.set(id,document);
+      res.json({
+        id, name:document.name, title:document.title, preview:document.preview, source:document.source,
+        warnings:document.warnings, blockers:document.blockers, stats:document.stats,
+        restoredFrom:{
+          name:record.name, id:record.parsed.id, version:record.parsed.version,
+          title:typeof snapshot.title === 'string' ? snapshot.title : '',
+          createdAt:new Date(record.parsed.timestamp).toISOString(),
+        },
+      });
     } catch(err) { next(err); }
-    finally { if(req.body) req.body.password = undefined; }
-  });
-  app.post('/api/backups/:name/restore',upstreamLimit,async(req,res,next)=>{
-    let plan;
-    try {
-      const body = req.body || {};
-      const auth = credentials(body);
-      plan = body.token ? req.session.restorePlans.get(body.token) : null;
-      if (body.token && (!plan || plan.expires < Date.now() || plan.name !== req.params.name)) throw new AppError('恢复预检查已过期，请重新检查备份。',409);
-      let hosts = allowedHosts, target;
-      if (plan) {
-        if (auth.username !== plan.username) throw new AppError('账号已改变，请重新检查备份。',409);
-        target = plan.target;
-      } else {
-        if (desktopToken) {
-          try { hosts = [new URL(body.url).hostname]; } catch { throw new AppError('请输入完整的 HTTPS Confluence 页面链接。'); }
-        }
-        target = parseTarget(body.url,hosts);
-      }
-      const record = await readBackup(dataDir,req.params.name);
-      validateSnapshot(record.snapshot,target);
-      if (String(record.snapshot.id) !== target.id) throw new AppError('备份与目标页面不匹配。',409);
-      const client = createConfluenceClient(auth,target,fetcher);
-      if (plan) plan.busy = true;
-      const current = await client.read();
-      validateSnapshot(current,target);
-      if (plan) assertUnchanged(plan.current,current);
-      else {
-        if (!Number.isSafeInteger(body.expectedVersion) || body.expectedVersion <= 0) throw new AppError('直接恢复必须提供 expectedVersion，请先检查目标页面。',409);
-        if (current.version.number !== body.expectedVersion) throw new AppError('目标页面版本已变化，已停止恢复。请重新检查。',409);
-      }
-      if (body.confirmTitle !== current.title || body.acknowledge !== true) throw new AppError('请核对并输入目标页面标题，确认恢复正文。');
-      const safetyBackup = await writeBackup(dataDir,target,current);
-      await client.update(current,record.snapshot.body.storage.value);
-      let verification = 'unconfirmed', version = current.version.number + 1;
-      try {
-        const saved = await client.read();
-        validateSnapshot(saved,target);
-        version = saved.version.number;
-        if (version === current.version.number + 1 && JSON.stringify(contentSignature(saved.body.storage.value)) === JSON.stringify(contentSignature(record.snapshot.body.storage.value))) verification = 'matched';
-        else verification = 'different';
-      } catch { /* The write succeeded; a failed readback must not cause an automatic retry. */ }
-      if (body.token) req.session.restorePlans.delete(body.token);
-      res.json({ok:true,url:target.url,title:current.title,version,verification,backup:safetyBackup,restoredFrom:record.name});
-    } catch(err) {
-      if (plan?.busy) req.session.restorePlans.delete(req.body?.token);
-      next(err);
-    } finally { if(req.body) req.body.password = undefined; }
   });
   app.post('/api/publish',upstreamLimit,async(req,res,next)=>{
     let plan;

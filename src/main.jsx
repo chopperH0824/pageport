@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import {
   ArrowRight, ArrowUpRight, Check, CheckCircle2, ChevronDown, ChevronRight,
   CloudUpload, Code2, Download, Eye, EyeOff, FileText, Files,
-  History, ImagePlus, Loader2, LockKeyhole, PanelLeftClose, PanelLeftOpen,
+  History, ImagePlus, Loader2, LockKeyhole, PanelLeftClose, PanelLeftOpen, FilePlus2,
   PanelRightClose, PanelRightOpen, Plus, RefreshCw, Send, ShieldCheck, TriangleAlert, X, XCircle,
 } from 'lucide-react';
 import './style.css';
@@ -197,7 +197,7 @@ function App() {
           const form=new FormData();
           form.append('document',new File([snapshot.source],'document.md',{type:'text/markdown'}));
           snapshot.images.forEach(image=>form.append('images',image));
-          const nextDoc=await api('/convert',{method:'POST',body:form});
+          const nextDoc=await api('/convert?allowEmpty=1',{method:'POST',body:form});
           if(seq!==generation.current)return;
           draft.current.applied=snapshot.revision;
           if(snapshot.revision===draft.current.revision) {
@@ -251,6 +251,53 @@ function App() {
     finally { if(seq === generation.current) setBusy(''); }
   }
   const loadDemo = () => convert(new File([demo],'PagePort 格式示例.md',{type:'text/markdown'})).then(ok=>{if(ok){fileToken.current=null;fileHandle.current=null;}});
+  // Load a document returned by the server (blank, or a snapshot restored from
+  // a local backup) into the editor. Restoration is local-only: the target
+  // page is not touched until the user reviews the preview and publishes.
+  function applyServerDocument(nextDoc, nextFile, markdown, message) {
+    setFile(nextFile);setImages([]);
+    fileToken.current=null;fileHandle.current=null;
+    draft.current={revision:0,applied:0,source:markdown,images:[],origin:'rich'};
+    setDocument(nextDoc); setSource(markdown);setDirty(false);setSync('ready');
+    setEditorContent(prev=>({html:nextDoc.preview,version:prev.version+1}));setTab('preview');
+    setReadOnly(false);setError('');
+    if(message)setNotice(message);
+  }
+  async function prepareLocalDocument() {
+    if(busy==='publish' || busy==='convert')return null;
+    if(dirty && !window.confirm('当前修改尚未保存到文件，确定替换编辑区？'))return null;
+    setBusy('convert');setError('');setNotice('');
+    try {if(pending.current || draft.current.applied!==draft.current.revision)await flushDraft();}
+    catch {setBusy('');return null;}
+    invalidate();
+    return generation.current;
+  }
+  async function newBlankDocument() {
+    const seq = await prepareLocalDocument();
+    if (seq === null) return false;
+    generation.current = seq + 1;
+    try {
+      const nextDoc = await api('/documents/blank',{method:'POST',json:{}});
+      if (generation.current !== seq + 1) return false;
+      applyServerDocument(nextDoc, new File([''],'未命名文档.md',{type:'text/markdown'}), '', '已新建空白文档，可直接开始编辑。');
+      return true;
+    } catch(err) { if(generation.current === seq + 1) setError(err.message); return false; }
+    finally { if(generation.current === seq + 1) setBusy(''); }
+  }
+  async function openBackup(name) {
+    const seq = await prepareLocalDocument();
+    if (seq === null) return false;
+    generation.current = seq + 1;
+    try {
+      const nextDoc = await api(`/backups/${encodeURIComponent(name)}/open`,{method:'POST',json:{}});
+      if (generation.current !== seq + 1) return false;
+      const title = nextDoc.restoredFrom?.title || nextDoc.title || '未命名';
+      applyServerDocument(nextDoc, new File([''],`恢复-${title}.md`,{type:'text/markdown'}), toMarkdown(nextDoc.preview || '<p></p>'),
+        '已把备份载入编辑区，不会直接修改线上页面。核对预览后，用右侧「检查目标页面」正常发布。');
+      return true;
+    } catch(err) { if(generation.current === seq + 1) setError(err.message); return false; }
+    finally { if(generation.current === seq + 1) setBusy(''); }
+  }
   function closeDocument() {
     if(busy==='publish' || busy==='convert')return;
     if(dirty && !window.confirm('当前修改尚未保存到文件。关闭后这些修改会丢失，确定关闭？'))return;
@@ -442,7 +489,7 @@ function App() {
       <button className="mobile-menu icon-button" title="打开文档栏" aria-label="打开文档栏" onClick={()=>setSidebar(!sidebar)}><Files size={20}/></button>
       <a href="/" className="brand"><img src="/brand.png" alt="" width="32" height="32"/><span>PagePort</span><span className="brand-divider"/><span className="brand-sub">文档发布台</span></a>
       <nav className="top-actions"><span className="engine-status"><span className="status-dot"/>Mark 引擎</span><span className="secure-indicator" title={boot.desktop?'转换与认证均在本机运行，不经过第三方发布服务器':'凭据仅用于本次请求，不保存密码'}><ShieldCheck size={15}/>{boot.desktop?'本机运行':'安全会话'}</span>
-        <SettingsPanel busy={!!busy} historyCount={history.length} api={api} restoreDefaults={{url,username,password}} onDemo={loadDemo} onHistory={()=>setShowHistory(true)}
+        <SettingsPanel busy={!!busy} historyCount={history.length} api={api} onOpenBackup={openBackup} onDemo={loadDemo} onHistory={()=>setShowHistory(true)}
           onLogout={async()=>{
             if(busy || (dirty && !window.confirm('当前修改尚未保存到文件。清除会话将丢失这些修改，确定继续？')))return;
             try {await api('/logout',{method:'POST',json:{}});window.location.reload();}
@@ -453,7 +500,7 @@ function App() {
     <div className={`workspace${leftOpen?'':' left-collapsed'}${rightOpen?'':' right-collapsed'}${resizing?' is-resizing':''}`} style={{'--doc-col':`${leftWidth}px`,'--publish-col':`${rightWidth}px`}}>
       <aside className={`sidebar ${sidebar?'is-open':''}`}>
         <div className="sidebar-head"><span className="overline">工作区</span><span className="sidebar-head-actions"><button className="icon-button collapse-side" title="收起文档栏，预览区变宽" aria-label="收起文档栏" onClick={()=>setLeftOpen(false)}><PanelLeftClose size={16}/></button><button className="icon-button mobile-close" title="关闭文档栏" aria-label="关闭文档栏" onClick={()=>setSidebar(false)}><PanelLeftClose size={16}/></button></span></div>
-        <button className="import-button" title="导入文档。已打开的文档会在确认后被替换。" onClick={()=>importDocument()} disabled={!!busy}><Plus size={17}/>导入文档<span>+</span></button>
+        <div className="import-actions"><button className="import-button" title="导入文档。已打开的文档会在确认后被替换。" onClick={()=>importDocument()} disabled={!!busy}><Plus size={17}/>导入文档<span>+</span></button><button className="import-blank" title="新建一份空白文档，直接开始编辑" aria-label="新建空白文档" onClick={newBlankDocument} disabled={!!busy}><FilePlus2 size={17}/><span>空白</span></button></div>
         <input ref={input} type="file" className="hidden" accept=".md,.markdown,.html,.htm,.docx,.doc,.txt,.png,.jpg,.jpeg,.webp,.gif" multiple onChange={e=>{chooseFiles(e.target.files);e.target.value='';}}/>
         <input ref={imageInput} type="file" className="hidden" accept=".png,.jpg,.jpeg,.webp,.gif" multiple onChange={e=>{chooseFiles(e.target.files);e.target.value='';}}/>
         <div className="section-label">当前文档<span>{file? '01':'00'}</span></div>
@@ -467,16 +514,16 @@ function App() {
       </aside>
       {sidebar && <button className="sidebar-scrim" aria-label="关闭文档栏" onClick={()=>setSidebar(false)}/>}
       <main className="editor">
-        <div className="page-heading"><h1>发布工作区<span className="tag">Confluence 7.6</span></h1><div className="tabs" role="tablist" aria-label="文档视图">
+        <div className="page-heading">{!leftOpen && !focus && <button className="icon-button expand-side desktop-only" title="展开文档栏" aria-label="展开文档栏" onClick={()=>setLeftOpen(true)}><PanelLeftOpen size={18}/></button>}<h1>发布工作区<span className="tag">Confluence 7.6</span></h1><div className="tabs" role="tablist" aria-label="文档视图">
           <button role="tab" aria-selected={tab==='preview'} className={tab==='preview'?'selected':''} onClick={()=>setTab('preview')}><Eye size={15}/>编辑预览</button>
           <button role="tab" aria-selected={tab==='source'} className={tab==='source'?'selected':''} onClick={()=>setTab('source')}><Code2 size={15}/>源文件</button>
           <button role="tab" aria-selected={tab==='checks'} className={tab==='checks'?'selected':''} onClick={()=>setTab('checks')}><ShieldCheck size={15}/>检查项{document && <span className={document.blockers.length?'issue-count':'tab-count'}>{document.warnings.length+document.blockers.length}</span>}</button>
-        </div><span className="preview-state" title="编辑会自动更新即将发布的正文。这不会写回原始文件，写回请用「保存到文件」。">{busy==='convert' || sync==='syncing'?<><Loader2 className="spin" size={13}/>同步中</>:document?<><span className="status-dot"/>{sync==='ready'?'发布稿已同步':sync==='error'?'同步失败':'待同步'}</>:null}</span><div className="page-heading-actions">{focus && <button className="small-button focus-restore" title="退出专注模式并恢复两侧栏" aria-label="退出专注模式并恢复两侧栏" onClick={()=>{setFocus(false);setLeftOpen(true);setRightOpen(true);}}><PanelLeftOpen size={15}/><PanelRightOpen size={15}/><span>退出专注模式</span></button>}{!leftOpen && !focus && <button className="icon-button desktop-only" title="展开文档栏" aria-label="展开文档栏" onClick={()=>setLeftOpen(true)}><PanelLeftOpen size={18}/></button>}{!rightOpen && !focus && <button className="icon-button desktop-only" title="展开发布栏" aria-label="展开发布栏" onClick={()=>setRightOpen(true)}><PanelRightOpen size={18}/></button>}<button className="small-button heading-action" title="把当前编辑保存成 Markdown 文件。不会改写 Word 或 HTML 原件。" aria-label="保存到文件" disabled={!document || busy==='publish'} onClick={()=>saveToFile().catch(err=>setError(err.message || '保存失败'))}><Download size={15}/><span>保存到文件</span></button><button className="small-button heading-action" title="关闭当前文档，以便编辑另一份" aria-label="关闭当前文档" disabled={!document || busy==='publish' || busy==='convert'} onClick={closeDocument}><X size={15}/><span>关闭</span></button><button className="icon-button" title={focus?'退出专注模式':'专注模式：隐藏两侧栏，预览铺满可用宽度'} aria-label="切换专注模式" onClick={()=>setFocus(!focus)}><PanelLeftClose size={18}/></button></div></div>
+        </div><span className="preview-state" title="编辑会自动更新即将发布的正文。这不会写回原始文件，写回请用「保存到文件」。">{busy==='convert' || sync==='syncing'?<><Loader2 className="spin" size={13}/>同步中</>:document?<><span className="status-dot"/>{sync==='ready'?'发布稿已同步':sync==='error'?'同步失败':'待同步'}</>:null}</span><div className="page-heading-actions">{focus && <button className="small-button focus-restore" title="退出专注模式并恢复两侧栏" aria-label="退出专注模式并恢复两侧栏" onClick={()=>{setFocus(false);setLeftOpen(true);setRightOpen(true);}}><PanelLeftOpen size={15}/><PanelRightOpen size={15}/><span>退出专注模式</span></button>}{!rightOpen && !focus && <button className="icon-button desktop-only" title="展开发布栏" aria-label="展开发布栏" onClick={()=>setRightOpen(true)}><PanelRightOpen size={18}/></button>}<button className="small-button heading-action" title="把当前编辑保存成 Markdown 文件。不会改写 Word 或 HTML 原件。" aria-label="保存到文件" disabled={!document || busy==='publish'} onClick={()=>saveToFile().catch(err=>setError(err.message || '保存失败'))}><Download size={15}/><span>保存到文件</span></button><button className="small-button heading-action" title="关闭当前文档，以便编辑另一份" aria-label="关闭当前文档" disabled={!document || busy==='publish' || busy==='convert'} onClick={closeDocument}><X size={15}/><span>关闭</span></button><button className="icon-button" title={focus?'退出专注模式':'专注模式：隐藏两侧栏，预览铺满可用宽度'} aria-label="切换专注模式" onClick={()=>setFocus(!focus)}><PanelLeftClose size={18}/></button></div></div>
         {error && <div className="alert error" role="alert"><XCircle size={17}/><span>{error}</span><button className="icon-button" title="关闭提示" aria-label="关闭提示" onClick={()=>setError('')}><X size={14}/></button></div>}
         {notice && <div className="alert" role="status">{notice}</div>}
         {sync==='error' && <div className="sync-error"><span>修改仍保留在编辑器中，发布已暂停。</span><button className="small-button" onClick={()=>flushDraft().catch(()=>{})}><RefreshCw size={13}/>重试同步</button></div>}
         <div className="document-area">
-          {busy==='convert'?<div className="document-loading"><Loader2 className="spin" size={26}/><h2>正在转换文档</h2><span>准备页面内容与配套图片</span></div>:!document?<button className="empty-upload" onClick={()=>importDocument()}><CloudUpload size={36}/><h2>选择文档</h2><span>Markdown / HTML / Word / TXT</span></button>:
+          {busy==='convert'?<div className="document-loading"><Loader2 className="spin" size={26}/><h2>正在转换文档</h2><span>准备页面内容与配套图片</span></div>:!document?<div className="empty-start"><button className="empty-upload" onClick={()=>importDocument()} disabled={!!busy}><CloudUpload size={36}/><h2>选择文档</h2><span>Markdown / HTML / Word / TXT</span></button><button className="empty-blank" onClick={newBlankDocument} disabled={!!busy}><FilePlus2 size={18}/><span>新建空白文档</span></button></div>:
             <><div className="preview-page" style={{display:tab==='preview'?'':'none'}}><div className="preview-page-head"><span title={readOnly?'这是本地近似预览，不是 Confluence 官方页面。字体、宏外观和站点主题以目标页面为准。':'这里改的是本地正文。约 1 秒后更新发布稿；写回磁盘请点「保存到文件」。'}><span className="confluence-mark">{readOnly?'C':'编'}</span>{readOnly?'近似预览':'正在编辑'}</span><div className="editor-mode-tools"><button className="small-button" title={readOnly?'返回编辑，继续修改正文':'查看即将发布的正文。版式只是近似，和 Confluence 站点不会完全一致。'} onClick={()=>setReadOnly(!readOnly)}>{readOnly?'返回编辑':'发布预览'}</button></div></div><div className="preview-body" style={{display:readOnly?'none':''}}><RichEditor key={generation.current} content={editorContent.html} contentVersion={editorContent.version} disabled={!!busy || (!!document.blockers.length && !document.preview.includes('data-pageport-missing-image'))} onChange={({source})=>changeDraft(source)} onError={setError} onReady={editor=>{rich.current=editor;}} onOutline={setOutline}/></div>{readOnly && <iframe title="Confluence 文档预览" sandbox="allow-same-origin" srcDoc={makeSrcDoc(document.preview)}/>}</div>
             {tab==='source'?<div className="source-view"><div className="source-toolbar"><span>Markdown{dirty?' · 未导出':''}</span><button className="small-button" disabled={!edited || !!busy} onClick={()=>flushDraft().catch(()=>{})}><RefreshCw size={13}/>立即同步</button></div><textarea aria-label="文档源文件" spellCheck={false} value={source} disabled={!!busy} onChange={e=>changeDraft(e.target.value,'source')}/></div>:tab==='checks'?
             <div className="checks-view"><h2>转换检查</h2><div className="checks-intro">{document.blockers.length?'有待处理的阻断项':'转换完成，可继续核对目标页面'}</div>

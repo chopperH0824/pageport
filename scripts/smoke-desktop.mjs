@@ -34,6 +34,6 @@ const state = JSON.parse(await readFile(path.join(output, 'desktop-smoke.json'),
 if (!state.brand?.loaded || state.brand.source !== '/brand.png' ||
   state.brand.blue !== '#2463eb' || state.brand.mint !== '#008a78') throw new Error('Desktop brand assets or theme are missing.');
 if (!state.toc?.passed || !state.editor?.passed || !state.updates?.passed || !state.settings?.passed ||
-  !state.backups?.passed || !state.focusRestore ||
+  !state.backups?.passed || !state.restore?.passed || !state.focusRestore || !state.sidebarCollapse?.passed || !state.blank?.passed ||
   !state.spacing?.every(item=>item.passed) || state.toc.narrowOverflow) throw new Error('Desktop smoke assertions failed.');
-console.log('Desktop editing, TOC, search, document spacing, backups, focus restore, settings and update UI checks passed.');
+console.log('Desktop editing, TOC, search, document spacing, sidebar collapse/expand, blank document, backups and backup restore, focus restore, settings and update UI checks passed.');

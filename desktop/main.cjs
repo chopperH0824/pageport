@@ -18,6 +18,19 @@ const smoke = process.argv.includes('--smoke');
 const appRoot = path.resolve(__dirname,'..');
 if(smoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'pageport-smoke-profile-')));
 
+// Seed one harmless synthetic backup so the native check can exercise the
+// "load this snapshot into the editor" flow end to end.
+async function seedSmokeBackup() {
+  const dir = path.join(app.getPath('userData'), 'data', 'backups');
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const name = `12-v3-${Date.now() - 60 * 60 * 1000}-deadbeef.json`;
+  await writeFile(path.join(dir, name), JSON.stringify({
+    id: '12', type: 'page', status: 'current', title: '备份示例页', space: { key: 'TEST' },
+    version: { number: 3 },
+    body: { storage: { value: '<h2>备份正文</h2><p>来自本机备份的段落</p><table><tbody><tr><td>A</td></tr></tbody></table>' } },
+  }, null, 2), { mode: 0o600 });
+}
+
 function updateState() {
   return { ...updater.state, automatic: automaticUpdates, ignoredVersion: ignoredUpdateVersion, cleanupInstaller };
 }
@@ -131,7 +144,7 @@ for (const [action, handler] of Object.entries({
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance',()=>{if(window){window.show();window.focus();}});
-  app.whenReady().then(start).catch(error=>{
+  app.whenReady().then(async () => { if (smoke) await seedSmokeBackup(); return start(); }).catch(error=>{
     if(smoke){console.error(error);app.exit(1);return;}
     dialog.showErrorBox('PagePort 无法启动',error.message);
     app.quit();
@@ -448,6 +461,32 @@ async function start() {
         await window.webContents.executeJavaScript(`document.querySelector('.editor-mode-tools button').click()`);
       }
       window.setSize(1440,960);
+      // The restore control must sit where the collapsed sidebar was, not at the
+      // far end of the heading row.
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="收起文档栏"]').click()`);
+      await new Promise(resolve=>setTimeout(resolve,250));
+      state.sidebarCollapse = await window.webContents.executeJavaScript(`(() => {
+        const button=document.querySelector('[aria-label="展开文档栏"]');
+        if(!button || !button.checkVisibility())return {ok:false,restored:false};
+        const rect=button.getBoundingClientRect();
+        return {ok:rect.left<160,left:Math.round(rect.left),restored:false};
+      })()`);
+      await writeFile(path.join(output,'desktop-sidebar-collapsed.png'),(await window.webContents.capturePage()).toPNG());
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="展开文档栏"]')?.click()`);
+      await new Promise(resolve=>setTimeout(resolve,250));
+      state.sidebarCollapse.restored = await window.webContents.executeJavaScript(`!!document.querySelector('.workspace>.sidebar')?.checkVisibility()`);
+      state.sidebarCollapse.passed = state.sidebarCollapse.ok && state.sidebarCollapse.restored;
+      // A blank document must open straight into the editor, without an upload step.
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="新建空白文档"]').click()`);
+      await new Promise(resolve=>setTimeout(resolve,700));
+      state.blank = await window.webContents.executeJavaScript(`({
+        editor:!!document.querySelector('.prose-editor'),
+        file:(document.querySelector('.file-item strong')?.textContent || '').trim(),
+        notice:[...document.querySelectorAll('[role="status"]')].map(el=>el.textContent).join(' '),
+        emptyState:!!document.querySelector('.empty-upload')
+      })`);
+      await writeFile(path.join(output,'desktop-blank.png'),(await window.webContents.capturePage()).toPNG());
+      state.blank.passed = state.blank.editor && !state.blank.emptyState && state.blank.file.includes('未命名');
       // Focus mode must always offer an obvious way back to both sidebars.
       await window.webContents.executeJavaScript(`if(!document.querySelector('.app-shell').classList.contains('focus-mode'))document.querySelector('[aria-label="切换专注模式"]').click()`);
       await new Promise(resolve=>setTimeout(resolve,250));
@@ -488,7 +527,10 @@ async function start() {
         folder:!!document.querySelector('.backup-open-folder'),
         list:!!document.querySelector('.backup-list'),
         focused:!!document.activeElement?.closest('.settings-modal'),
-        empty:(document.querySelector('.backup-empty')?.textContent || '').includes('暂无')
+        items:document.querySelectorAll('.backup-item').length,
+        restoreLabel:(document.querySelector('.backup-restore')?.textContent || '').includes('载入编辑区'),
+        localOnly:!document.querySelector('#restore-url') && !document.querySelector('#restore-password'),
+        note:(document.querySelector('.backup-restore-note')?.textContent || '').includes('不会改动 Confluence 页面')
       })`);
       await writeFile(path.join(output,'desktop-backups.png'),(await window.webContents.capturePage()).toPNG());
       window.setSize(940,700);
@@ -500,8 +542,22 @@ async function start() {
       await writeFile(path.join(output,'desktop-backups-narrow.png'),(await window.webContents.capturePage()).toPNG());
       window.setSize(1440,960);
       await new Promise(resolve=>setTimeout(resolve,200));
-      state.backups.passed=state.backups.visible && state.backups.retention==='7' && state.backups.folder && state.backups.list && state.backups.focused && !state.backups.narrowOverflow;
+      state.backups.passed=state.backups.visible && state.backups.retention==='7' && state.backups.folder && state.backups.list && state.backups.focused &&
+        state.backups.items>=1 && state.backups.restoreLabel && state.backups.localOnly && state.backups.note && !state.backups.narrowOverflow;
       state.settings.keyboard=state.settings.keyboard && state.backups.passed;
+      // Restoring a backup must land in the editor preview, not on the live page.
+      await window.webContents.executeJavaScript(`document.querySelector('.backup-item .backup-restore').click()`);
+      await new Promise(resolve=>setTimeout(resolve,900));
+      state.restore = await window.webContents.executeJavaScript(`({
+        closed:!document.querySelector('.settings-overlay').checkVisibility(),
+        editor:!!document.querySelector('.prose-editor'),
+        text:(document.querySelector('.prose-editor')?.textContent || '').includes('备份正文'),
+        notice:[...document.querySelectorAll('[role="status"]')].map(el=>el.textContent).join(' ').includes('载入编辑区')
+      })`);
+      await writeFile(path.join(output,'desktop-backup-restored.png'),(await window.webContents.capturePage()).toPNG());
+      state.restore.passed=state.restore.closed && state.restore.editor && state.restore.text && state.restore.notice;
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="设置"]').click()`);
+      await new Promise(resolve=>setTimeout(resolve,200));
       await window.webContents.executeJavaScript(`document.querySelector('#settings-updates-tab').click()`);
       await new Promise(resolve=>setTimeout(resolve,150));
       await window.webContents.executeJavaScript(`document.querySelector('[aria-label="检查更新"]').click()`);
@@ -571,7 +627,7 @@ async function start() {
       state.settings.passed=state.settings.general && state.settings.actions.some(text=>text.includes('示例文档')) &&
         state.settings.actions.some(text=>text.includes('清除会话')) && state.settings.history && state.settings.cleanToolbar && state.settings.focused &&
         state.settings.keyboard && state.settings.focusTrap && state.settings.escape && state.settings.badge && state.settings.menu &&
-        state.backups?.passed && state.focusRestore;
+        state.backups?.passed && state.restore?.passed && state.focusRestore && state.sidebarCollapse?.passed && state.blank?.passed;
       state.updates.passed = state.updates.heading === 'PagePort 99.0.0' && state.updates.notes && state.updates.fallback && state.updates.focused &&
         state.updates.downloaded && state.updates.cleanupOption && state.updates.preference && state.updates.ignore && state.updates.unignore &&
         !state.updates.overflow && !state.updates.narrowOverflow;

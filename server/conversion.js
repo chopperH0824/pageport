@@ -4,11 +4,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-export async function isolatedConversion(file, images) {
+export async function isolatedConversion(file, images, options = {}) {
   const scratchRoot=await mkdtemp(path.join(tmpdir(),'pageport-job-'));
   try { return await new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./conversion-worker.js', import.meta.url), {
-      workerData: { file, images, scratchRoot },
+      workerData: { file, images, scratchRoot, options },
       resourceLimits: { maxOldGenerationSizeMb: 192 },
     });
     const timer = setTimeout(() => {

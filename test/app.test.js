@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import request from 'supertest';
@@ -12,6 +12,7 @@ import { createApp } from '../server/app.js';
 import { convertDocument, cleanHtml } from '../server/convert.js';
 import { parseTarget, credentials, contentSignature } from '../server/confluence.js';
 import { toMarkdown } from '../src/markdown.js';
+import { storageToEditorHtml } from '../server/storage-import.js';
 
 const exec = promisify(execFile);
 const file = (text, name='test.md') => ({originalname:name, buffer:Buffer.from(text)});
@@ -345,7 +346,7 @@ test('mocked complete publish, protected backup, readback and no replay',async t
   await h.post('/publish',{...auth,token,confirmTitle:'Test page',acknowledge:true}).expect(409);
 });
 
-test('backup list, download, retention policy and guarded restore APIs',async t=>{
+test('backup list, download, retention policy and local open API',async t=>{
   const h=await harness(t);
   const documentId=await upload(h);
   const checked=await h.post('/check',{...auth,url,documentId}).expect(200);
@@ -364,22 +365,27 @@ test('backup list, download, retention policy and guarded restore APIs',async t=
   assert.match(download.headers['content-disposition'],/attachment/);
   assert.match(download.text,/Original body/);
   assert.doesNotMatch(download.text,/transient-password-only|Authorization/);
+  // Opening a backup is local-only: no credentials, no Confluence request.
+  const callsBeforeOpen=h.calls.length;
+  const opened=await h.post('/backups/'+backup.name+'/open',{}).expect(200);
+  assert.equal(h.calls.length,callsBeforeOpen);
+  assert.equal(opened.body.title,'Test page');
+  assert.match(opened.body.preview,/Original body/);
+  assert.match(opened.body.warnings[0],/已从本机备份载入编辑区/);
+  assert.deepEqual(opened.body.restoredFrom,{name:backup.name,id:'12',version:1,title:'Test page',createdAt:backup.createdAt});
+  const openedStorage=await h.agent.get('/api/documents/'+opened.body.id+'/storage').expect(200);
+  assert.match(openedStorage.text,/Original body/);
+  // Loading a local backup invalidates an existing publish plan.
+  const reloadedDocument=await upload(h);
+  const reloadedCheck=await h.post('/check',{...auth,url,documentId:reloadedDocument}).expect(200);
+  await h.post('/backups/'+backup.name+'/open',{}).expect(200);
+  await h.post('/publish',{...auth,token:reloadedCheck.body.token,confirmTitle:'Test page',acknowledge:true}).expect(409);
+  // The old direct-write restore endpoints no longer exist.
+  await h.post('/backups/'+backup.name+'/restore-check',{...auth,url}).expect(404);
+  await h.post('/backups/'+backup.name+'/restore',{...auth,url,token:'x',confirmTitle:'Test page',acknowledge:true}).expect(404);
+  await h.post('/backups/not-a-backup/open',{}).expect(400);
   await h.agent.put('/api/backup-settings').set('X-CSRF-Token',h.boot.csrf).send({retentionDays:0}).expect(200);
   assert.equal((await h.agent.get('/api/backup-settings')).body.retentionDays,null);
-  const restoreCheck=await h.post('/backups/'+backup.name+'/restore-check',{...auth,url}).expect(200);
-  assert.equal(restoreCheck.body.target.version,2);
-  assert.equal(restoreCheck.body.backup.name,backup.name);
-  h.setPage({version:{number:3}});
-  await h.post('/backups/'+backup.name+'/restore',{...auth,token:restoreCheck.body.token,confirmTitle:'Test page',acknowledge:true}).expect(409);
-  const secondCheck=await h.post('/backups/'+backup.name+'/restore-check',{...auth,url}).expect(200);
-  const restored=await h.post('/backups/'+backup.name+'/restore',{...auth,token:secondCheck.body.token,confirmTitle:'Test page',acknowledge:true}).expect(200);
-  assert.equal(restored.body.verification,'matched');
-  assert.equal(restored.body.version,4);
-  assert.equal(restored.body.restoredFrom,backup.name);
-  assert.ok(restored.body.backup);
-  const afterRestore=await h.agent.get('/api/backups').expect(200);
-  assert.equal(afterRestore.body.items.length,2);
-  assert.doesNotMatch(JSON.stringify(afterRestore.body),/transient-password-only|Authorization/);
   await h.agent.get('/api/backups/not-a-backup/download').expect(400);
   const oldName='12-v1-'+(Date.now()-8*24*60*60*1000)+'-deadbeef.json';
   await writeFile(path.join(h.dir,'backups',oldName),JSON.stringify({id:'12',type:'page',status:'current',title:'Old',version:{number:1},body:{storage:{value:'<p>Old</p>'}}}));
@@ -389,6 +395,100 @@ test('backup list, download, retention policy and guarded restore APIs',async t=
   assert.ok((await readdir(path.join(h.dir,'backups'))).includes(oldName));
   await h.agent.put('/api/backup-settings').set('X-CSRF-Token',h.boot.csrf).send({retentionDays:7}).expect(200);
   await assert.rejects(()=>readFile(path.join(h.dir,'backups',oldName)),{code:'ENOENT'});
+});
+
+test('blank document is created locally and exposed as empty storage',async t=>{
+  const h=await harness(t);
+  const callsBefore=h.calls.length;
+  await h.agent.post('/api/documents/blank').send({}).expect(403);
+  // A blank draft is metadata only: it must not invoke the Mark engine.
+  const previousMark=process.env.MARK_BIN;
+  process.env.MARK_BIN=path.join(h.dir,'missing-mark');
+  let blank;
+  try { blank=await h.post('/documents/blank',{}).expect(200); }
+  finally {
+    if(previousMark===undefined)delete process.env.MARK_BIN;
+    else process.env.MARK_BIN=previousMark;
+  }
+  assert.equal(blank.body.name,'未命名文档.md');
+  assert.equal(blank.body.title,'未命名文档');
+  assert.equal(blank.body.preview,'<p></p>');
+  assert.equal(blank.body.source,'');
+  assert.equal(blank.body.allowEmpty,true);
+  assert.deepEqual(blank.body.warnings,[]);
+  assert.deepEqual(blank.body.blockers,[]);
+  assert.deepEqual(blank.body.stats,{headings:0,tables:0,images:0,characters:0});
+  const storage=await h.agent.get('/api/documents/'+blank.body.id+'/storage').expect(200);
+  assert.equal(storage.text,'<p></p>');
+  assert.equal(h.calls.length,callsBefore);
+  // Creating a blank draft replaces the current document and clears publish plans.
+  const documentId=await upload(h);
+  const checked=await h.post('/check',{...auth,url,documentId}).expect(200);
+  const second=await h.post('/documents/blank',{}).expect(200);
+  await h.agent.get('/api/documents/'+documentId+'/storage').expect(404);
+  await h.agent.get('/api/documents/'+second.body.id+'/storage').expect(200);
+  await h.post('/publish',{...auth,token:checked.body.token,confirmTitle:'Test page',acknowledge:true}).expect(409);
+});
+
+test('allowEmpty conversion returns a stable empty draft while normal conversion still rejects it',async t=>{
+  const h=await harness(t);
+  const empty=await h.agent.post('/api/convert?allowEmpty=1').set('X-CSRF-Token',h.boot.csrf).attach('document',Buffer.from('\n\n'),'empty.md').expect(200);
+  assert.equal(empty.body.preview,'<p></p>');
+  assert.deepEqual(empty.body.stats,{headings:0,tables:0,images:0,characters:0});
+  assert.deepEqual(empty.body.blockers,[]);
+  const storage=await h.agent.get('/api/documents/'+empty.body.id+'/storage').expect(200);
+  assert.equal(storage.text,'<p></p>');
+  const rejected=await h.agent.post('/api/convert').set('X-CSRF-Token',h.boot.csrf).attach('document',Buffer.from('\n\n'),'empty.md').expect(400);
+  assert.match(rejected.body.error,/没有可发布的内容/);
+});
+
+test('backup storage import maps macros, tasks, emoticons and image placeholders',()=>{
+  const storage='<h2>标题</h2><p>正文</p><ac:structured-macro ac:name="toc" ac:schema-version="1"><ac:parameter ac:name="minLevel">2</ac:parameter><ac:parameter ac:name="maxLevel">9</ac:parameter></ac:structured-macro><ac:structured-macro ac:name="warning"><ac:rich-text-body><p>风险</p></ac:rich-text-body></ac:structured-macro><ac:structured-macro ac:name="panel"><ac:rich-text-body><p>通用面板</p></ac:rich-text-body></ac:structured-macro><ac:task-list><ac:task><ac:task-id>1</ac:task-id><ac:task-status>complete</ac:task-status><ac:task-body><p>完成</p></ac:task-body></ac:task><ac:task><ac:task-id>2</ac:task-id><ac:task-status>incomplete</ac:task-status><ac:task-body>待办</ac:task-body></ac:task></ac:task-list><p>状态 <ac:emoticon ac:name="tick" /></p><ac:image><ri:attachment ri:filename="chart.png" /></ac:image>';
+  const {html,warnings}=storageToEditorHtml(storage);
+  const $=load(html);
+  assert.equal($('[data-pageport-toc]').attr('data-min-level'),'2');
+  assert.equal($('[data-pageport-toc]').attr('data-max-level'),'6');
+  assert.equal($('[data-pageport-panel="warning"] p').text(),'风险');
+  assert.equal($('[data-pageport-panel="info"] p').text(),'通用面板');
+  assert.equal($('li[data-type="taskItem"][data-checked="true"] p').text(),'完成');
+  assert.equal($('li[data-type="taskItem"][data-checked="false"]').text(),'待办');
+  assert.match($('body').text(),/✓/);
+  assert.equal($('[data-pageport-missing-image]').attr('data-pageport-missing-image'),'备份附件图片 chart.png');
+  assert.doesNotMatch(html,/(?:ac|ri):/);
+  assert.doesNotMatch(html,/1complete|complete完成/);
+  assert.deepEqual(warnings,[]);
+});
+
+test('opening a backup renders body, table, macros and tasks locally and blocks missing attachments',async t=>{
+  const h=await harness(t);
+  const timestamp=Date.now();
+  const name=`12-v5-${timestamp}-abcdef12.json`;
+  const snapshot={id:'12',type:'page',status:'current',title:'复杂备份',space:{key:'TEST'},version:{number:5},body:{storage:{value:'<h2>标题</h2><p>备份正文</p><table><tbody><tr><th>功能</th><th>级别</th></tr><tr><td>导入</td><td>P0</td></tr></tbody></table><ac:structured-macro ac:name="toc"><ac:parameter ac:name="minLevel">2</ac:parameter><ac:parameter ac:name="maxLevel">3</ac:parameter></ac:structured-macro><ac:structured-macro ac:name="warning"><ac:rich-text-body><p>风险</p></ac:rich-text-body></ac:structured-macro><ac:task-list><ac:task><ac:task-id>1</ac:task-id><ac:task-status>complete</ac:task-status><ac:task-body><p>完成</p></ac:task-body></ac:task></ac:task-list><p>状态 <ac:emoticon ac:name="tick" /></p><ac:image><ri:attachment ri:filename="chart.png" /></ac:image>'}}};
+  await mkdir(path.join(h.dir,'backups'),{recursive:true});
+  await writeFile(path.join(h.dir,'backups',name),JSON.stringify(snapshot));
+  const callsBefore=h.calls.length;
+  const opened=await h.post('/backups/'+name+'/open',{}).expect(200);
+  assert.equal(h.calls.length,callsBefore);
+  assert.equal(opened.body.title,'复杂备份');
+  assert.equal(opened.body.name,name);
+  assert.deepEqual(opened.body.restoredFrom,{name,id:'12',version:5,title:'复杂备份',createdAt:new Date(timestamp).toISOString()});
+  assert.match(opened.body.warnings[0],/已从本机备份载入编辑区/);
+  assert.ok(opened.body.blockers.length>=1);
+  assert.match(opened.body.blockers.join('\n'),/图片/);
+  const $=load(opened.body.preview);
+  assert.equal($('h2').text(),'标题');
+  assert.match($('body').text(),/备份正文/);
+  assert.equal($('table tr').length,2);
+  assert.equal($('[data-pageport-toc]').attr('data-min-level'),'2');
+  assert.equal($('[data-pageport-panel="warning"]').length,1);
+  assert.equal($('ul[data-type="taskList"] li[data-type="taskItem"][data-checked="true"]').length,1);
+  assert.match($('body').text(),/✓/);
+  assert.doesNotMatch(opened.body.preview,/ac:|1complete|complete完成/);
+  const storage=await h.agent.get('/api/documents/'+opened.body.id+'/storage').expect(200);
+  assert.match(storage.text,/ac:structured-macro ac:name="warning"/);
+  assert.match(storage.text,/ac:parameter ac:name="minLevel">2</);
+  assert.match(storage.text,/ac:task-list/);
+  assert.doesNotMatch(storage.text,/data-pageport-(?:toc|panel)/);
 });
 
 test('conversion failures retain current draft, but every conversion invalidates the old publish plan',async t=>{
