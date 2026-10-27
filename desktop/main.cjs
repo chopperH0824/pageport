@@ -311,6 +311,9 @@ async function start() {
       if(ready)break;
       await new Promise(resolve=>setTimeout(resolve,200));
     }
+    // The smoke window is never shown. A native confirm() on a hidden window can
+    // block forever (notably on Windows), so auto-accept prompts during checks.
+    await window.webContents.executeJavaScript(`(() => { window.confirm=()=>true; window.alert=()=>{}; return true; })()`);
     const exampleDeadline=Date.now()+20000;
     if (process.platform === 'win32') {
       do {

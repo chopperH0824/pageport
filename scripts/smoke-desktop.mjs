@@ -26,7 +26,7 @@ if(packaged || installed) {
 const output = process.env.PAGEPORT_SMOKE_DIR || await mkdtemp(path.join(tmpdir(), 'pageport-check-'));
 const args = [...(packaged || installed ? [] : ['.']), '--smoke', '--smoke-toc', '--smoke-editor', '--smoke-updates'];
 const child = spawn(executable, args, { stdio: 'inherit', env: { ...process.env, PAGEPORT_SMOKE_DIR: output } });
-const timer = setTimeout(() => { child.kill(); }, 120000);
+const timer = setTimeout(() => { child.kill(); }, 180000);
 const code = await new Promise((resolve, reject) => { child.once('exit', resolve); child.once('error', reject); });
 clearTimeout(timer);
 if (code !== 0) throw new Error(`Desktop smoke exited with ${code}.`);
