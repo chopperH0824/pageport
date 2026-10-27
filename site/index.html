@@ -15,7 +15,7 @@
       <a class="brand-link" href="#download" aria-label="PagePort 首页">
         <img src="./brand.png" alt="PagePort Logo" width="36" height="36">
         <span class="brand-name">PagePort</span>
-        <span class="version-pill" id="nav-version">v0.5.7</span>
+        <span class="version-pill" id="nav-version">v0.5.8</span>
       </a>
 
       <nav class="nav-links" aria-label="主导航">
@@ -71,14 +71,14 @@
             </div>
             <div class="download-action">
               <div class="download-details">
-                <span class="download-label" id="download-meta">DMG · v0.5.7 · 159.6 MB</span>
-                <strong id="download-file">PagePort-0.5.7-arm64.dmg</strong>
+                <span class="download-label" id="download-meta">DMG · v0.5.8 · 159.6 MB</span>
+                <strong id="download-file">PagePort-0.5.8-arm64.dmg</strong>
                 <button type="button" class="sha-copy-btn" id="copy-sha" title="复制所选安装包 SHA-256">
-                  <span id="sha-text">macOS SHA-256: 168b9123…91225a0f</span>
+                  <span id="sha-text">macOS SHA-256: 111a1156…c67972d7</span>
                   <span aria-hidden="true">复制</span>
                 </button>
               </div>
-              <a class="btn btn-primary download-button" id="download-installer" href="/downloads/PagePort-0.5.7-arm64.dmg" aria-label="下载 macOS 安装包">
+              <a class="btn btn-primary download-button" id="download-installer" href="/downloads/PagePort-0.5.8-arm64.dmg" aria-label="下载 macOS 安装包">
                 <span>下载并开始</span>
                 <span aria-hidden="true">↓</span>
               </a>
@@ -194,7 +194,7 @@
             <div class="install-panel-top"><span class="os-label">macOS</span><span class="install-platform">Apple Silicon</span></div>
             <h3>拖入“应用程序”</h3>
             <ol>
-              <li>打开 <code id="install-dmg-name">PagePort-0.5.7-arm64.dmg</code>。</li>
+              <li>打开 <code id="install-dmg-name">PagePort-0.5.8-arm64.dmg</code>。</li>
               <li>将 PagePort 拖入“应用程序”。首次打开按系统提示允许。</li>
               <li>登录你的 Confluence，开始导入和发布。</li>
             </ol>
@@ -203,7 +203,7 @@
             <div class="install-panel-top"><span class="os-label">Windows</span><span class="install-platform">x64</span></div>
             <h3>运行安装向导</h3>
             <ol>
-              <li>运行 <code id="install-exe-name">PagePort-0.5.7-x64-setup.exe</code>。</li>
+              <li>运行 <code id="install-exe-name">PagePort-0.5.8-x64-setup.exe</code>。</li>
               <li>选择安装目录。SmartScreen 提示时先核对 SHA-256。</li>
               <li>打开 PagePort，数据会保留在当前用户目录。</li>
             </ol>
@@ -216,13 +216,13 @@
       <div class="container release-layout">
         <div class="release-copy">
           <p class="eyebrow">最新版本</p>
-          <h2 id="release-box-title">PagePort v0.5.7 正式版</h2>
+          <h2 id="release-box-title">PagePort v0.5.8 正式版</h2>
           <p>一份轻量、可核对、适合团队协作的本地发布工作台。</p>
-          <a id="github-release-link" class="text-link" href="https://github.com/chopperH0824/pageport/releases/tag/v0.5.7" target="_blank" rel="noopener noreferrer">查看 GitHub Release →</a>
+          <a id="github-release-link" class="text-link" href="https://github.com/chopperH0824/pageport/releases/tag/v0.5.8" target="_blank" rel="noopener noreferrer">查看 GitHub Release →</a>
         </div>
         <div class="release-summary">
           <div class="release-summary-head"><span>更新日期</span><strong id="release-date-badge">2026-10-27</strong></div>
-          <ul id="release-highlights-list"><li>新增「新建空白文档」：无需准备文件，直接从空白页开始编辑和发布。</li><li>收起文档栏后，展开按钮紧挨在标题左侧，不再跑到窗口另一端。</li><li>「本机备份」点“载入编辑区”会把快照放回编辑器预览，确认后再走正常发布流程，不会直接改写线上页面。</li><li>备份默认保留 7 天，可改为自定义天数或永不自动删除；升级前的旧备份不会被静默清理。</li></ul>
+          <ul id="release-highlights-list"><li>更新检查改为 GitHub API + 官方镜像双通道：GitHub 限流或不可用时自动改用 pageport.chopperh.me，不再直接报错。</li><li>镜像返回的版本、来源、文件名、大小与 SHA-256 都会校验，安装包下载后仍做完整摘要校验。</li><li>保留「新建空白文档」、侧栏展开按钮就近显示、本机备份载入编辑区等 0.5.7 功能。</li><li>更新面板会标明本次检查走的是 GitHub 还是官方镜像。</li></ul>
         </div>
       </div>
     </section>
@@ -243,16 +243,16 @@
 <script type="application/json" id="release-meta">
 {
   "product": "PagePort",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "releaseDate": "2026-10-27",
   "engine": "Mark 16.22.0 Built-in",
-  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.5.7",
+  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.5.8",
   "githubRepoUrl": "https://github.com/chopperH0824/pageport",
   "highlights": [
-    "新增「新建空白文档」：无需准备文件，直接从空白页开始编辑和发布。",
-    "收起文档栏后，展开按钮紧挨在标题左侧，不再跑到窗口另一端。",
-    "「本机备份」点“载入编辑区”会把快照放回编辑器预览，确认后再走正常发布流程，不会直接改写线上页面。",
-    "备份默认保留 7 天，可改为自定义天数或永不自动删除；升级前的旧备份不会被静默清理。"
+    "更新检查改为 GitHub API + 官方镜像双通道：GitHub 限流或不可用时自动改用 pageport.chopperh.me，不再直接报错。",
+    "镜像返回的版本、来源、文件名、大小与 SHA-256 都会校验，安装包下载后仍做完整摘要校验。",
+    "保留「新建空白文档」、侧栏展开按钮就近显示、本机备份载入编辑区等 0.5.7 功能。",
+    "更新面板会标明本次检查走的是 GitHub 还是官方镜像。"
   ],
   "assets": [
     {
@@ -261,14 +261,14 @@
       "arch": "arm64",
       "label": "macOS",
       "detail": "Apple Silicon · macOS 13+",
-      "filename": "PagePort-0.5.7-arm64.dmg",
+      "filename": "PagePort-0.5.8-arm64.dmg",
       "latestAlias": "PagePort-latest-arm64.dmg",
-      "sizeBytes": 167330843,
+      "sizeBytes": 167344095,
       "sizeFormatted": "159.6 MB",
-      "sha256": "168b9123cc4a292f49d8899b1ce6bed9ceed127e1ec1bcf4577afae191225a0f",
+      "sha256": "111a115604a134fb6f28887a9dade0abada2309b3d5012b73f25f46dc67972d7",
       "directDownloadUrl": "/downloads/PagePort-latest-arm64.dmg",
-      "versionedDownloadUrl": "/downloads/PagePort-0.5.7-arm64.dmg",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.5.7/PagePort-0.5.7-arm64.dmg"
+      "versionedDownloadUrl": "/downloads/PagePort-0.5.8-arm64.dmg",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.5.8/PagePort-0.5.8-arm64.dmg"
     },
     {
       "id": "windows",
@@ -276,14 +276,14 @@
       "arch": "x64",
       "label": "Windows",
       "detail": "Windows 10/11 x64",
-      "filename": "PagePort-0.5.7-x64-setup.exe",
+      "filename": "PagePort-0.5.8-x64-setup.exe",
       "latestAlias": "PagePort-latest-x64-setup.exe",
-      "sizeBytes": 135547870,
+      "sizeBytes": 135548681,
       "sizeFormatted": "129.3 MB",
-      "sha256": "5029bc7dc62f78a46a797a5a7221ba328815fad8c8f930c640b30b5809a61f26",
+      "sha256": "12cedc4f8059af835d32b4c924d5d50a19433bf1627b7a2cff6b969cb60e5583",
       "directDownloadUrl": "/downloads/PagePort-latest-x64-setup.exe",
-      "versionedDownloadUrl": "/downloads/PagePort-0.5.7-x64-setup.exe",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.5.7/PagePort-0.5.7-x64-setup.exe"
+      "versionedDownloadUrl": "/downloads/PagePort-0.5.8-x64-setup.exe",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.5.8/PagePort-0.5.8-x64-setup.exe"
     }
   ]
 }
