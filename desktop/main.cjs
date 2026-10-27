@@ -69,35 +69,28 @@ for (const [action, handler] of Object.entries({
         : '安装器会打开并等待你完成安装，已下载的安装包会保留。',
     });
     if (choice.response !== 1) return updateState();
-    const script = '$installer = $env:PAGEPORT_INSTALLER; ' +
-      '$working = Split-Path -Parent $installer; ' +
-      '$p = Start-Process -FilePath $installer -WorkingDirectory $working -PassThru -Wait; ' +
-      'if ($p.ExitCode -eq 0) { ' +
-      'if ($env:PAGEPORT_DELETE -eq "1") { ' +
-      '$deadline = (Get-Date).AddSeconds(30); ' +
-      'do { ' +
-      'try { Remove-Item -LiteralPath $installer -Force -ErrorAction Stop } catch {}; ' +
-      'if (-not (Test-Path -LiteralPath $installer)) { break }; ' +
-      'Start-Sleep -Milliseconds 500 ' +
-      '} while ((Get-Date) -lt $deadline) ' +
-      '}; exit $p.ExitCode';
-    const child = spawn('powershell.exe', [
-      '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', script,
-    ], {
+    // Launch the verified EXE directly. The previous PowerShell wrapper could
+    // disappear with the Electron process before Start-Process handed the GUI
+    // over on some Windows installations, leaving only the "close PagePort"
+    // guidance visible. A detached child keeps the NSIS window independent.
+    const child = spawn(installer, [], {
       detached: true,
       stdio: 'ignore',
-      windowsHide: true,
-      env: { ...process.env, PAGEPORT_INSTALLER: installer, PAGEPORT_DELETE: cleanupInstaller ? '1' : '0' },
+      windowsHide: false,
     });
+    const launched = await new Promise(resolve => {
+      let settled = false;
+      child.once('spawn', () => { settled = true; resolve(true); });
+      child.once('error', () => { if (!settled) resolve(false); });
+    });
+    if (!launched) {
+      const openError = await shell.openPath(installer);
+      if (openError) {
+        updater.set({ status: 'downloaded', error: '无法直接启动安装程序，安装包仍保留，可重新打开安装程序。' });
+        return updateState();
+      }
+    }
     child.unref();
-    const launched = await new Promise((resolve, reject) => {
-      child.once('spawn', resolve);
-      child.once('error', reject);
-    }).then(() => true, () => {
-      updater.set({ status: 'downloaded', error: '无法直接启动安装程序，安装包仍保留，可重新打开安装程序。' });
-      return false;
-    });
-    if (!launched) return updateState();
     updater.set({ status: 'installing', error: '' });
     child.once('close', code => {
       if (!updater || updater.state.status !== 'installing') return;
@@ -105,7 +98,6 @@ for (const [action, handler] of Object.entries({
         ? { status: 'installed', error: '' }
         : { status: 'downloaded', error: '安装程序未完成，安装包仍保留，可重新打开安装程序。' });
     });
-    updater.set({ status: 'installing', error: '' });
     // Let the installer take over after PagePort has had a chance to close normally.
     setTimeout(() => app.quit(), 250).unref();
     return updateState();

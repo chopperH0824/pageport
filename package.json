@@ -1,6 +1,6 @@
 {
   "name": "pageport",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "A local-first Confluence document publisher for macOS and Windows, powered by Mark",
   "author": "PagePort contributors",
   "license": "MIT",
