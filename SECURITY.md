@@ -36,7 +36,15 @@ container limits consequences but is not a substitute for patching.
 Backups contain the original company page. Protect the Mac user account (or web data volume and host),
 encrypt backups as required by policy, and enforce a retention schedule.
 The backup is a REST snapshot, not a full recoverable Confluence export.
-Restore through reviewed REST changes or Confluence page history.
+Restore from the app's "本机备份" panel: it re-reads the live page, verifies the
+page ID and version, requires the current title and an explicit confirmation,
+saves a fresh snapshot of the live page first, then updates with version
+protection and reads the body back. Restores of attachments, permissions,
+comments and unrelated history are not supported.
+
+Retention defaults to 7 days and can be changed or disabled in the app. Cleanup
+only deletes backups created after the retention feature was enabled; snapshots
+from earlier versions are removed only after an explicit policy is saved.
 
 ## Known limits
 

@@ -309,7 +309,7 @@ async function harness(t, options={}) {
   const boot=(await agent.get('/api/bootstrap')).body;
   const post=(route,body)=>agent.post('/api'+route).set('X-CSRF-Token',boot.csrf).send(body);
   t.after(async()=>{app.locals.dispose();await rm(dir,{recursive:true,force:true});});
-  return {agent,post,boot,dir,calls,setPage:p=>{page={...page,...p};}};
+  return {agent,post,boot,dir,calls,cleanupBackups:()=>app.locals.cleanupBackups(),setPage:p=>{page={...page,...p};}};
 }
 const auth={username:'tester',password:'transient-password-only'};
 const url='https://wiki.example.com/pages/viewpage.action?pageId=12';
@@ -343,6 +343,52 @@ test('mocked complete publish, protected backup, readback and no replay',async t
   assert.match(backup,/Original body/);
   assert.doesNotMatch(backup,/transient-password-only|Authorization/);
   await h.post('/publish',{...auth,token,confirmTitle:'Test page',acknowledge:true}).expect(409);
+});
+
+test('backup list, download, retention policy and guarded restore APIs',async t=>{
+  const h=await harness(t);
+  const documentId=await upload(h);
+  const checked=await h.post('/check',{...auth,url,documentId}).expect(200);
+  const published=await h.post('/publish',{...auth,token:checked.body.token,confirmTitle:'Test page',acknowledge:true}).expect(200);
+  const list=await h.agent.get('/api/backups').expect(200);
+  assert.equal(list.body.retentionDays,7);
+  assert.equal(list.body.items.length,1);
+  const backup=list.body.items[0];
+  assert.equal(backup.id,'12');
+  assert.equal(backup.version,1);
+  assert.equal(backup.title,'Test page');
+  assert.equal(typeof backup.createdAt,'string');
+  assert.equal(typeof backup.size,'number');
+  assert.equal(published.body.backup,backup.name);
+  const download=await h.agent.get('/api/backups/'+backup.name+'/download').expect(200);
+  assert.match(download.headers['content-disposition'],/attachment/);
+  assert.match(download.text,/Original body/);
+  assert.doesNotMatch(download.text,/transient-password-only|Authorization/);
+  await h.agent.put('/api/backup-settings').set('X-CSRF-Token',h.boot.csrf).send({retentionDays:0}).expect(200);
+  assert.equal((await h.agent.get('/api/backup-settings')).body.retentionDays,null);
+  const restoreCheck=await h.post('/backups/'+backup.name+'/restore-check',{...auth,url}).expect(200);
+  assert.equal(restoreCheck.body.target.version,2);
+  assert.equal(restoreCheck.body.backup.name,backup.name);
+  h.setPage({version:{number:3}});
+  await h.post('/backups/'+backup.name+'/restore',{...auth,token:restoreCheck.body.token,confirmTitle:'Test page',acknowledge:true}).expect(409);
+  const secondCheck=await h.post('/backups/'+backup.name+'/restore-check',{...auth,url}).expect(200);
+  const restored=await h.post('/backups/'+backup.name+'/restore',{...auth,token:secondCheck.body.token,confirmTitle:'Test page',acknowledge:true}).expect(200);
+  assert.equal(restored.body.verification,'matched');
+  assert.equal(restored.body.version,4);
+  assert.equal(restored.body.restoredFrom,backup.name);
+  assert.ok(restored.body.backup);
+  const afterRestore=await h.agent.get('/api/backups').expect(200);
+  assert.equal(afterRestore.body.items.length,2);
+  assert.doesNotMatch(JSON.stringify(afterRestore.body),/transient-password-only|Authorization/);
+  await h.agent.get('/api/backups/not-a-backup/download').expect(400);
+  const oldName='12-v1-'+(Date.now()-8*24*60*60*1000)+'-deadbeef.json';
+  await writeFile(path.join(h.dir,'backups',oldName),JSON.stringify({id:'12',type:'page',status:'current',title:'Old',version:{number:1},body:{storage:{value:'<p>Old</p>'}}}));
+  // A snapshot that predates the retention feature is protected from the
+  // default policy until the user explicitly saves a policy.
+  await h.cleanupBackups();
+  assert.ok((await readdir(path.join(h.dir,'backups'))).includes(oldName));
+  await h.agent.put('/api/backup-settings').set('X-CSRF-Token',h.boot.csrf).send({retentionDays:7}).expect(200);
+  await assert.rejects(()=>readFile(path.join(h.dir,'backups',oldName)),{code:'ENOENT'});
 });
 
 test('conversion failures retain current draft, but every conversion invalidates the old publish plan',async t=>{

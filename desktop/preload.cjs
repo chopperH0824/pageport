@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('pageportDesktop', {
   openDocument: () => ipcRenderer.invoke('pageport:open-document'),
   readDocument: token => ipcRenderer.invoke('pageport:read-document', token),
   saveDocument: payload => ipcRenderer.invoke('pageport:save-document', payload),
+  openBackups: () => ipcRenderer.invoke('pageport:open-backups'),
   updates: {
     state: () => ipcRenderer.invoke('pageport:update-state'),
     check: () => ipcRenderer.invoke('pageport:update-check'),

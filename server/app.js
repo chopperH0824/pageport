@@ -3,18 +3,120 @@ import multer from 'multer';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, readdir, lstat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { AppError } from './convert.js';
 import { isolatedConversion } from './conversion.js';
 import { parseTarget, credentials, createConfluenceClient, validateSnapshot, summarizePage, assertUnchanged, contentSignature } from './confluence.js';
 
 const random = () => randomBytes(24).toString('hex');
+const DEFAULT_BACKUP_RETENTION_DAYS = 7;
+const BACKUP_SETTINGS_FILE = 'backup-settings.json';
+const BACKUP_NAME_RE = /^(\d{1,20})-v(\d+)-(\d{13})-([a-f0-9]{8})\.json$/;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const safeEqual = (a,b) => {
   const x = Buffer.from(a || ''), y = Buffer.from(b || '');
   return x.length === y.length && timingSafeEqual(x,y);
 };
 const sessionLifetime = 30 * 60 * 1000;
+const backupDirFor = dataDir => path.join(dataDir, 'backups');
+const settingsPathFor = dataDir => path.join(dataDir, BACKUP_SETTINGS_FILE);
+function normalizeRetentionDays(value, { allowUndefined = false } = {}) {
+  if (allowUndefined && value === undefined) return DEFAULT_BACKUP_RETENTION_DAYS;
+  if (value === null || value === 0) return null;
+  if (Number.isSafeInteger(value) && value > 0) return value;
+  throw new AppError('保留天数必须是正整数，或设为 0/不删除。', 400);
+}
+// Snapshots written before this version are never removed by the default
+// policy alone; "protectBefore" marks the moment the retention feature was
+// first initialised. Saving a policy explicitly clears it, so the user can
+// always choose to apply cleanup to older snapshots.
+function normalizeSettings(settings = {}) {
+  let retentionDays;
+  try { retentionDays = normalizeRetentionDays(settings.retentionDays); }
+  catch { retentionDays = DEFAULT_BACKUP_RETENTION_DAYS; }
+  const protectBefore = Number.isSafeInteger(settings.protectBefore) && settings.protectBefore > 0 ? settings.protectBefore : 0;
+  return { retentionDays, protectBefore };
+}
+async function readSettings(dataDir) {
+  try { return normalizeSettings(JSON.parse(await readFile(settingsPathFor(dataDir), 'utf8'))); }
+  catch (err) { if (err.code !== 'ENOENT') return normalizeSettings(); return null; }
+}
+async function ensureSettings(dataDir) {
+  const current = await readSettings(dataDir);
+  if (current) return current;
+  const settings = normalizeSettings({ retentionDays: DEFAULT_BACKUP_RETENTION_DAYS, protectBefore: Date.now() });
+  await mkdir(dataDir, { recursive: true, mode: 0o700 });
+  await writeFile(settingsPathFor(dataDir), JSON.stringify(settings, null, 2), { mode: 0o600, flag: 'wx' }).catch(err => { if (err.code !== 'EEXIST') throw err; });
+  return (await readSettings(dataDir)) || settings;
+}
+const readRetentionDays = async dataDir => {
+  const settings = await readSettings(dataDir);
+  return settings ? settings.retentionDays : DEFAULT_BACKUP_RETENTION_DAYS;
+};
+async function saveRetentionDays(dataDir, retentionDays) {
+  await mkdir(dataDir, { recursive: true, mode: 0o700 });
+  await writeFile(settingsPathFor(dataDir), JSON.stringify({ retentionDays, protectBefore: 0 }, null, 2), { mode: 0o600 });
+}
+function parseBackupName(name) {
+  const match = BACKUP_NAME_RE.exec(name);
+  if (!match) return null;
+  return { id: match[1], version: Number(match[2]), timestamp: Number(match[3]) };
+}
+function backupFilePath(dataDir, name) {
+  if (typeof name !== 'string' || path.basename(name) !== name || !parseBackupName(name)) throw new AppError('备份文件名无效。', 400);
+  return path.join(backupDirFor(dataDir), name);
+}
+async function readBackup(dataDir, name) {
+  const filePath = backupFilePath(dataDir, name);
+  let info;
+  try { info = await lstat(filePath); } catch (err) { if (err.code === 'ENOENT') throw new AppError('备份不存在。', 404); throw err; }
+  if (!info.isFile()) throw new AppError('备份不存在。', 404);
+  let snapshot;
+  try { snapshot = JSON.parse(await readFile(filePath, 'utf8')); } catch { throw new AppError('备份文件损坏，无法恢复。', 422); }
+  return { name, filePath, snapshot, size: info.size, parsed: parseBackupName(name) };
+}
+async function writeBackup(dataDir, target, current) {
+  const dir = backupDirFor(dataDir);
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const name = `${target.id}-v${current.version.number}-${Date.now()}-${random().slice(0, 8)}.json`;
+  await writeFile(path.join(dir, name), JSON.stringify(current, null, 2), { mode: 0o600, flag: 'wx' });
+  return name;
+}
+async function listBackups(dataDir) {
+  let entries;
+  try { entries = await readdir(backupDirFor(dataDir), { withFileTypes: true }); }
+  catch (err) { if (err.code === 'ENOENT') return []; throw err; }
+  const items = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !parseBackupName(entry.name)) continue;
+    try {
+      const record = await readBackup(dataDir, entry.name);
+      const title = typeof record.snapshot?.title === 'string' ? record.snapshot.title : '';
+      items.push({ name: entry.name, id: record.parsed.id, version: record.parsed.version, title, createdAt: new Date(record.parsed.timestamp).toISOString(), size: record.size });
+    } catch { /* Ignore files that are incomplete or not valid PagePort backups. */ }
+  }
+  return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+async function cleanupBackups(dataDir, retentionDays) {
+  const settings = await readSettings(dataDir);
+  const days = retentionDays === undefined ? (settings ? settings.retentionDays : DEFAULT_BACKUP_RETENTION_DAYS) : normalizeRetentionDays(retentionDays);
+  if (days === null) return { removed: 0, retentionDays: null };
+  let entries;
+  try { entries = await readdir(backupDirFor(dataDir), { withFileTypes: true }); }
+  catch (err) { if (err.code === 'ENOENT') return { removed: 0, retentionDays: days }; throw err; }
+  const cutoff = Date.now() - days * DAY_MS;
+  // Snapshots that predate the retention feature are never purged implicitly.
+  const protectBefore = retentionDays === undefined ? (settings?.protectBefore || 0) : 0;
+  let removed = 0;
+  for (const entry of entries) {
+    const parsed = parseBackupName(entry.name);
+    if (!entry.isFile() || !parsed || parsed.timestamp >= cutoff) continue;
+    if (protectBefore && parsed.timestamp < protectBefore) continue;
+    try { await unlink(path.join(backupDirFor(dataDir), entry.name)); removed++; } catch (err) { if (err.code !== 'ENOENT') throw err; }
+  }
+  return { removed, retentionDays: days };
+}
 export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || path.resolve('data'), accessPassword = process.env.ACCESS_PASSWORD || '', allowedHosts = (process.env.CONFLUENCE_HOSTS || '').split(',').map(s => s.trim()).filter(Boolean), production = process.env.NODE_ENV === 'production', desktopToken = process.env.PAGEPORT_DESKTOP_TOKEN || '' } = {}) {
   if (production && accessPassword.length < 16) throw new Error('Production requires ACCESS_PASSWORD with at least 16 characters.');
   const app = express(), sessions = new Map();
@@ -37,7 +139,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
       for (const [key,value] of sessions) if (value.expires < Date.now()) sessions.delete(key);
       if (sessions.size >= 100) return next(new AppError('当前会话较多，请稍后再试。',503));
       const id = random();
-      s = { id, csrf: random(), authenticated: !!desktopToken || !accessPassword, expires: Date.now()+sessionLifetime, documents: new Map(), plans: new Map() };
+      s = { id, csrf: random(), authenticated: !!desktopToken || !accessPassword, expires: Date.now()+sessionLifetime, documents: new Map(), plans: new Map(), restorePlans: new Map() };
       sessions.set(id,s);
       res.cookie('pageport',id,{httpOnly:true,secure:production && !desktopToken,sameSite:'strict',maxAge:sessionLifetime,path:'/'});
     }
@@ -122,10 +224,98 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
     } catch(err) { next(err); }
     finally { if(req.body) req.body.password = undefined; }
   });
+  app.get('/api/backup-settings',async(req,res,next)=>{
+    try { res.json({retentionDays:await readRetentionDays(dataDir)}); } catch(err) { next(err); }
+  });
+  app.put('/api/backup-settings',async(req,res,next)=>{
+    try {
+      const retentionDays = normalizeRetentionDays(req.body?.retentionDays);
+      await saveRetentionDays(dataDir,retentionDays);
+      await cleanupBackups(dataDir,retentionDays);
+      res.json({retentionDays});
+    } catch(err) { next(err); }
+  });
+  app.get('/api/backups',async(req,res,next)=>{
+    try { res.json({items:await listBackups(dataDir),retentionDays:await readRetentionDays(dataDir)}); } catch(err) { next(err); }
+  });
   app.get('/api/backups/:token',(req,res,next)=>{
     const plan = req.session.plans.get(req.params.token);
     if (!plan || plan.expires < Date.now()) return next(new AppError('预检查已过期。',404));
     res.attachment(`confluence-${plan.target.id}-v${plan.page.version.number}.json`).json(plan.page);
+  });
+  app.get('/api/backups/:name/download',async(req,res,next)=>{
+    try {
+      const record = await readBackup(dataDir,req.params.name);
+      res.type('application/json').attachment(record.name).send(JSON.stringify(record.snapshot,null,2));
+    } catch(err) { next(err); }
+  });
+  app.post('/api/backups/:name/restore-check',upstreamLimit,async(req,res,next)=>{
+    try {
+      const body = req.body || {};
+      let hosts = allowedHosts;
+      if (desktopToken) {
+        try { hosts = [new URL(body.url).hostname]; } catch { throw new AppError('请输入完整的 HTTPS Confluence 页面链接。'); }
+      }
+      const auth = credentials(body), target = parseTarget(body.url,hosts);
+      const record = await readBackup(dataDir,req.params.name);
+      validateSnapshot(record.snapshot,target);
+      if (String(record.snapshot.id) !== target.id) throw new AppError('备份与目标页面不匹配。',409);
+      const client = createConfluenceClient(auth,target,fetcher);
+      const current = await client.read();
+      validateSnapshot(current,target);
+      const token = random();
+      req.session.restorePlans.clear();
+      req.session.restorePlans.set(token,{name:req.params.name,target,current,username:auth.username,expires:Date.now()+5*60*1000,busy:false});
+      res.json({token,expiresIn:300,target:{id:target.id,title:current.title,version:current.version.number,url:target.url},backup:{name:record.name,id:record.parsed.id,version:record.parsed.version,title:typeof record.snapshot.title==='string'?record.snapshot.title:'',createdAt:new Date(record.parsed.timestamp).toISOString(),size:record.size}});
+    } catch(err) { next(err); }
+    finally { if(req.body) req.body.password = undefined; }
+  });
+  app.post('/api/backups/:name/restore',upstreamLimit,async(req,res,next)=>{
+    let plan;
+    try {
+      const body = req.body || {};
+      const auth = credentials(body);
+      plan = body.token ? req.session.restorePlans.get(body.token) : null;
+      if (body.token && (!plan || plan.expires < Date.now() || plan.name !== req.params.name)) throw new AppError('恢复预检查已过期，请重新检查备份。',409);
+      let hosts = allowedHosts, target;
+      if (plan) {
+        if (auth.username !== plan.username) throw new AppError('账号已改变，请重新检查备份。',409);
+        target = plan.target;
+      } else {
+        if (desktopToken) {
+          try { hosts = [new URL(body.url).hostname]; } catch { throw new AppError('请输入完整的 HTTPS Confluence 页面链接。'); }
+        }
+        target = parseTarget(body.url,hosts);
+      }
+      const record = await readBackup(dataDir,req.params.name);
+      validateSnapshot(record.snapshot,target);
+      if (String(record.snapshot.id) !== target.id) throw new AppError('备份与目标页面不匹配。',409);
+      const client = createConfluenceClient(auth,target,fetcher);
+      if (plan) plan.busy = true;
+      const current = await client.read();
+      validateSnapshot(current,target);
+      if (plan) assertUnchanged(plan.current,current);
+      else {
+        if (!Number.isSafeInteger(body.expectedVersion) || body.expectedVersion <= 0) throw new AppError('直接恢复必须提供 expectedVersion，请先检查目标页面。',409);
+        if (current.version.number !== body.expectedVersion) throw new AppError('目标页面版本已变化，已停止恢复。请重新检查。',409);
+      }
+      if (body.confirmTitle !== current.title || body.acknowledge !== true) throw new AppError('请核对并输入目标页面标题，确认恢复正文。');
+      const safetyBackup = await writeBackup(dataDir,target,current);
+      await client.update(current,record.snapshot.body.storage.value);
+      let verification = 'unconfirmed', version = current.version.number + 1;
+      try {
+        const saved = await client.read();
+        validateSnapshot(saved,target);
+        version = saved.version.number;
+        if (version === current.version.number + 1 && JSON.stringify(contentSignature(saved.body.storage.value)) === JSON.stringify(contentSignature(record.snapshot.body.storage.value))) verification = 'matched';
+        else verification = 'different';
+      } catch { /* The write succeeded; a failed readback must not cause an automatic retry. */ }
+      if (body.token) req.session.restorePlans.delete(body.token);
+      res.json({ok:true,url:target.url,title:current.title,version,verification,backup:safetyBackup,restoredFrom:record.name});
+    } catch(err) {
+      if (plan?.busy) req.session.restorePlans.delete(req.body?.token);
+      next(err);
+    } finally { if(req.body) req.body.password = undefined; }
   });
   app.post('/api/publish',upstreamLimit,async(req,res,next)=>{
     let plan;
@@ -142,10 +332,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
       const client = createConfluenceClient(auth,plan.target,fetcher);
       const current = await client.read();
       validateSnapshot(current,plan.target); assertUnchanged(plan.page,current);
-      const backupDir = path.join(dataDir,'backups');
-      await mkdir(backupDir,{recursive:true,mode:0o700});
-      const backupName = `${plan.target.id}-v${current.version.number}-${Date.now()}-${random().slice(0,8)}.json`;
-      await writeFile(path.join(backupDir,backupName),JSON.stringify(current,null,2),{mode:0o600,flag:'wx'});
+      const backupName = await writeBackup(dataDir,plan.target,current);
       for (const asset of doc.assets) await client.attach(asset);
       // Attachments may take time. Check again immediately before the optimistic versioned PUT.
       if (doc.assets.length) assertUnchanged(plan.page,await client.read());
@@ -176,7 +363,11 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
     res.status(err.status || 500).json({error:err instanceof AppError ? err.message : '处理失败，请稍后再试。未确认结果时请先检查目标页面。'});
   });
   const timer = setInterval(()=>{ for(const [id,s] of sessions) if(s.expires < Date.now()) sessions.delete(id); },60000);
+  const backupTimer = setInterval(()=>{ cleanupBackups(dataDir).catch(()=>{}); },60*60*1000);
   timer.unref();
-  app.locals.dispose = () => clearInterval(timer);
+  backupTimer.unref();
+  app.locals.cleanupBackups = () => cleanupBackups(dataDir);
+  void (async () => { await ensureSettings(dataDir); await cleanupBackups(dataDir); })().catch(()=>{});
+  app.locals.dispose = () => { clearInterval(timer); clearInterval(backupTimer); };
   return app;
 }

@@ -28,6 +28,13 @@ async function saveUpdateSettings() {
   await writeFile(path.join(app.getPath('userData'), 'update-settings.json'),
     JSON.stringify({ automatic: automaticUpdates, ignoredVersion: ignoredUpdateVersion, cleanupInstaller }), { mode: 0o600 });
 }
+const backupsDirectory = () => path.join(app.getPath('userData'), 'data', 'backups');
+async function openBackupsFolder() {
+  const directory = backupsDirectory();
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const error = await shell.openPath(directory);
+  return error ? { ok: false, error: '无法打开本机备份文件夹。' } : { ok: true };
+}
 for (const [action, handler] of Object.entries({
   state: () => updateState(),
   check: async () => { await updater.check(); return updateState(); },
@@ -193,6 +200,12 @@ ipcMain.handle('pageport:save-document', async (_event, payload) => {
   return { token: rememberFile(filePath), name: path.basename(filePath), overwritten };
 });
 
+ipcMain.handle('pageport:open-backups', async event => {
+  if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame ||
+    !origin || new URL(event.senderFrame.url).origin !== origin) throw new Error('Untrusted backup request.');
+  return openBackupsFolder();
+});
+
 async function start() {
   const dataDir=path.join(app.getPath('userData'),'data');
   const markName=process.platform==='win32'?'mark.exe':'mark';
@@ -263,7 +276,7 @@ async function start() {
     }
   };
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    {label:'PagePort',submenu:[{role:'about'},{label:'检查更新…',click:checkForUpdates},{type:'separator'},{label:'打开备份文件夹',click:()=>shell.openPath(path.join(dataDir,'backups'))},{type:'separator'},...(process.platform==='darwin'?[{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'}]:[]),{role:'quit'}]},
+    {label:'PagePort',submenu:[{role:'about'},{label:'检查更新…',click:checkForUpdates},{type:'separator'},{label:'打开备份文件夹',click:()=>openBackupsFolder()},{type:'separator'},...(process.platform==='darwin'?[{role:'hide'},{role:'hideOthers'},{role:'unhide'},{type:'separator'}]:[]),{role:'quit'}]},
     {label:'编辑',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},
     {label:'窗口',submenu:[{role:'minimize'},{role:'zoom'},{role:'front'}]},
   ]));
@@ -425,10 +438,28 @@ async function start() {
           await new Promise(resolve=>setTimeout(resolve,100));
         } while(Date.now()<previewDeadline);
         await writeFile(path.join(output,`desktop-preview-${name}.png`),(await window.webContents.capturePage()).toPNG());
-        state.spacing.push({name,editor,preview,passed:editor.left>=18 && editor.right>=18 && !editor.overflow && preview?.left>=18 && preview?.right>=18});
+        const focusRestore = !focus || await window.webContents.executeJavaScript(`(() => {
+          const bar=document.querySelector('.focus-restore');
+          if(!bar || !bar.checkVisibility())return false;
+          const rect=bar.getBoundingClientRect();
+          return rect.left>=0 && rect.right<=innerWidth && rect.top>=0 && !!bar.textContent.trim();
+        })()`);
+        state.spacing.push({name,editor,preview,focusRestore,passed:editor.left>=18 && editor.right>=18 && !editor.overflow && preview?.left>=18 && preview?.right>=18 && focusRestore});
         await window.webContents.executeJavaScript(`document.querySelector('.editor-mode-tools button').click()`);
       }
       window.setSize(1440,960);
+      // Focus mode must always offer an obvious way back to both sidebars.
+      await window.webContents.executeJavaScript(`if(!document.querySelector('.app-shell').classList.contains('focus-mode'))document.querySelector('[aria-label="切换专注模式"]').click()`);
+      await new Promise(resolve=>setTimeout(resolve,250));
+      const focusBar = await window.webContents.executeJavaScript(`(() => {
+        const bar=document.querySelector('.focus-restore');
+        if(!document.querySelector('.app-shell').classList.contains('focus-mode') || !bar?.checkVisibility())return false;
+        const rect=bar.getBoundingClientRect();
+        return rect.left>=0 && rect.right<=innerWidth && rect.top>=0 && !!bar.textContent.trim();
+      })()`);
+      await window.webContents.executeJavaScript(`document.querySelector('.focus-restore')?.click()`);
+      await new Promise(resolve=>setTimeout(resolve,250));
+      state.focusRestore = focusBar && await window.webContents.executeJavaScript(`!document.querySelector('.app-shell').classList.contains('focus-mode') && !!document.querySelector('.workspace>.sidebar')?.checkVisibility() && !!document.querySelector('.workspace>.publish-panel')?.checkVisibility()`);
       await window.webContents.executeJavaScript(`document.querySelector('[aria-label="设置"]').click()`);
       await new Promise(resolve=>setTimeout(resolve,100));
       state.settings = await window.webContents.executeJavaScript(`({
@@ -445,7 +476,34 @@ async function start() {
       await new Promise(resolve=>setTimeout(resolve,100));
       await window.webContents.executeJavaScript(`document.querySelector('#settings-general-tab').focus();document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}))`);
       await new Promise(resolve=>setTimeout(resolve,100));
-      state.settings.keyboard=await window.webContents.executeJavaScript(`document.querySelector('#settings-updates-tab').getAttribute('aria-selected')==='true' && document.activeElement.id==='settings-updates-tab'`);
+      state.settings.backupsTab=await window.webContents.executeJavaScript(`document.querySelector('#settings-backups-tab').getAttribute('aria-selected')==='true' && document.activeElement.id==='settings-backups-tab'`);
+      await window.webContents.executeJavaScript(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true}))`);
+      await new Promise(resolve=>setTimeout(resolve,100));
+      state.settings.keyboard=state.settings.backupsTab && await window.webContents.executeJavaScript(`document.querySelector('#settings-updates-tab').getAttribute('aria-selected')==='true' && document.activeElement.id==='settings-updates-tab'`);
+      await window.webContents.executeJavaScript(`document.querySelector('[aria-label="本机备份"]').click()`);
+      await new Promise(resolve=>setTimeout(resolve,400));
+      state.backups = await window.webContents.executeJavaScript(`({
+        visible:!!document.querySelector('#settings-backups')?.checkVisibility(),
+        retention:document.querySelector('#backup-retention')?.value,
+        folder:!!document.querySelector('.backup-open-folder'),
+        list:!!document.querySelector('.backup-list'),
+        focused:!!document.activeElement?.closest('.settings-modal'),
+        empty:(document.querySelector('.backup-empty')?.textContent || '').includes('暂无')
+      })`);
+      await writeFile(path.join(output,'desktop-backups.png'),(await window.webContents.capturePage()).toPNG());
+      window.setSize(940,700);
+      await new Promise(resolve=>setTimeout(resolve,250));
+      state.backups.narrowOverflow=await window.webContents.executeJavaScript(`(() => {
+        const rect=document.querySelector('.backup-modal')?.getBoundingClientRect();
+        return !rect || rect.left<0 || rect.right>innerWidth || rect.bottom>innerHeight || rect.top<0;
+      })()`);
+      await writeFile(path.join(output,'desktop-backups-narrow.png'),(await window.webContents.capturePage()).toPNG());
+      window.setSize(1440,960);
+      await new Promise(resolve=>setTimeout(resolve,200));
+      state.backups.passed=state.backups.visible && state.backups.retention==='7' && state.backups.folder && state.backups.list && state.backups.focused && !state.backups.narrowOverflow;
+      state.settings.keyboard=state.settings.keyboard && state.backups.passed;
+      await window.webContents.executeJavaScript(`document.querySelector('#settings-updates-tab').click()`);
+      await new Promise(resolve=>setTimeout(resolve,150));
       await window.webContents.executeJavaScript(`document.querySelector('[aria-label="检查更新"]').click()`);
       await new Promise(resolve=>setTimeout(resolve,500));
       state.updates = await window.webContents.executeJavaScript(`({
@@ -512,7 +570,8 @@ async function start() {
       await window.webContents.executeJavaScript(`document.querySelector('[aria-label="关闭设置"]').click()`);
       state.settings.passed=state.settings.general && state.settings.actions.some(text=>text.includes('示例文档')) &&
         state.settings.actions.some(text=>text.includes('清除会话')) && state.settings.history && state.settings.cleanToolbar && state.settings.focused &&
-        state.settings.keyboard && state.settings.focusTrap && state.settings.escape && state.settings.badge && state.settings.menu;
+        state.settings.keyboard && state.settings.focusTrap && state.settings.escape && state.settings.badge && state.settings.menu &&
+        state.backups?.passed && state.focusRestore;
       state.updates.passed = state.updates.heading === 'PagePort 99.0.0' && state.updates.notes && state.updates.fallback && state.updates.focused &&
         state.updates.downloaded && state.updates.cleanupOption && state.updates.preference && state.updates.ignore && state.updates.unignore &&
         !state.updates.overflow && !state.updates.narrowOverflow;
