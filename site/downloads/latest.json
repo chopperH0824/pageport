@@ -1,15 +1,15 @@
 {
   "product": "PagePort",
-  "version": "0.5.9",
-  "releaseDate": "2026-10-27",
+  "version": "0.6.0",
+  "releaseDate": "2026-10-28",
   "engine": "Mark 16.22.0 Built-in",
-  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.5.9",
+  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.6.0",
   "githubRepoUrl": "https://github.com/chopperH0824/pageport",
   "highlights": [
-    "修复 Windows 下载完成后无法显示安装器的问题：现在直接启动已校验的安装程序。",
-    "更新检查继续支持 GitHub API + pageport.chopperh.me 官方镜像双通道。",
-    "保留「新建空白文档」、侧栏展开按钮就近显示、本机备份载入编辑区等功能。",
-    "Windows 取消安装或启动失败时仍保留已下载的安装包，方便重试。"
+    "Windows 安装程序完成页内置「安装完成后删除安装包」选项，由安装向导完成后自动清理安装包。",
+    "接入 SignPath Foundation 开源项目代码签名规范、隐私声明与 GitHub Actions 自动签名流水线。",
+    "更新检查支持 GitHub API + pageport.chopperh.me 官方镜像双通道，下载后仍严格校验 SHA-256。",
+    "支持「新建空白文档」、侧栏展开按钮就近显示，以及本机备份载入编辑区预览后再发布。"
   ],
   "assets": [
     {
@@ -18,14 +18,14 @@
       "arch": "arm64",
       "label": "macOS",
       "detail": "Apple Silicon · macOS 13+",
-      "filename": "PagePort-0.5.9-arm64.dmg",
+      "filename": "PagePort-0.6.0-arm64.dmg",
       "latestAlias": "PagePort-latest-arm64.dmg",
-      "sizeBytes": 167343813,
+      "sizeBytes": 167344953,
       "sizeFormatted": "159.6 MB",
-      "sha256": "aac7d795942fa80262dee3f8bb13b5dfe6b13086775f41d27f99ecc6a7184991",
-      "directDownloadUrl": "/downloads/PagePort-latest-arm64.dmg",
-      "versionedDownloadUrl": "/downloads/PagePort-0.5.9-arm64.dmg",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.5.9/PagePort-0.5.9-arm64.dmg"
+      "sha256": "cb8af789162d4d6b9f94f9f27fba0f7cac9ed2de85b8657412c940fee8e7c80f",
+      "directDownloadUrl": "/downloads/PagePort-0.6.0-arm64.dmg",
+      "versionedDownloadUrl": "/downloads/PagePort-0.6.0-arm64.dmg",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.6.0/PagePort-0.6.0-arm64.dmg"
     },
     {
       "id": "windows",
@@ -33,14 +33,14 @@
       "arch": "x64",
       "label": "Windows",
       "detail": "Windows 10/11 x64",
-      "filename": "PagePort-0.5.9-x64-setup.exe",
+      "filename": "PagePort-0.6.0-x64-setup.exe",
       "latestAlias": "PagePort-latest-x64-setup.exe",
-      "sizeBytes": 135548551,
+      "sizeBytes": 135549700,
       "sizeFormatted": "129.3 MB",
-      "sha256": "4d00c3c1f6c821159c127160da4b3b75f9fc319bb072ca635eb19cc8b13187f1",
-      "directDownloadUrl": "/downloads/PagePort-latest-x64-setup.exe",
-      "versionedDownloadUrl": "/downloads/PagePort-0.5.9-x64-setup.exe",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.5.9/PagePort-0.5.9-x64-setup.exe"
+      "sha256": "ec523bf7b1d6eaf5d8caf3b23f27b540987df33d370e7c95274e627cebe53a45",
+      "directDownloadUrl": "/downloads/PagePort-0.6.0-x64-setup.exe",
+      "versionedDownloadUrl": "/downloads/PagePort-0.6.0-x64-setup.exe",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.6.0/PagePort-0.6.0-x64-setup.exe"
     }
   ]
 }
