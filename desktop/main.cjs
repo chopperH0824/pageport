@@ -65,15 +65,13 @@ for (const [action, handler] of Object.entries({
       title: '安装 PagePort 更新',
       message: '请先保存文档，再打开安装程序。',
       detail: cleanupInstaller
-        ? '安装器会在 PagePort 安装完成后自动删除已下载的安装包。你可以在安装器中取消，取消时不会删除安装包。'
-        : '安装器会打开并等待你完成安装，已下载的安装包会保留。',
+        ? '安装向导完成页已默认勾选「安装完成后删除安装包」，安装完成后由安装程序自动清理安装包；取消安装时不会删除。'
+        : '安装向导完成页已取消勾选「安装完成后删除安装包」，你仍可在安装向导完成页随时调整。',
     });
     if (choice.response !== 1) return updateState();
-    // Launch the verified EXE directly. The previous PowerShell wrapper could
-    // disappear with the Electron process before Start-Process handed the GUI
-    // over on some Windows installations, leaving only the "close PagePort"
-    // guidance visible. A detached child keeps the NSIS window independent.
-    const child = spawn(installer, [], {
+    // Launch the verified EXE directly and pass the cleanup preference into the
+    // NSIS finish page so the installer itself handles post-install cleanup.
+    const child = spawn(installer, [cleanupInstaller ? '--delete-installer' : '--keep-installer'], {
       detached: true,
       stdio: 'ignore',
       windowsHide: false,
@@ -473,7 +471,12 @@ async function start() {
       state.sidebarCollapse.passed = state.sidebarCollapse.ok && state.sidebarCollapse.restored;
       // A blank document must open straight into the editor, without an upload step.
       await window.webContents.executeJavaScript(`document.querySelector('[aria-label="新建空白文档"]').click()`);
-      await new Promise(resolve=>setTimeout(resolve,700));
+      const blankDeadline = Date.now() + 8000;
+      while (Date.now() < blankDeadline) {
+        const ready = await window.webContents.executeJavaScript(`(document.querySelector('.file-item strong')?.textContent || '').includes('未命名')`);
+        if (ready) break;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
       state.blank = await window.webContents.executeJavaScript(`({
         editor:!!document.querySelector('.prose-editor'),
         file:(document.querySelector('.file-item strong')?.textContent || '').trim(),
@@ -542,7 +545,12 @@ async function start() {
       state.settings.keyboard=state.settings.keyboard && state.backups.passed;
       // Restoring a backup must land in the editor preview, not on the live page.
       await window.webContents.executeJavaScript(`document.querySelector('.backup-item .backup-restore').click()`);
-      await new Promise(resolve=>setTimeout(resolve,900));
+      const restoreDeadline = Date.now() + 8000;
+      while (Date.now() < restoreDeadline) {
+        const done = await window.webContents.executeJavaScript(`!document.querySelector('.settings-overlay')?.checkVisibility() && (document.querySelector('.prose-editor')?.textContent || '').includes('备份正文')`);
+        if (done) break;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
       state.restore = await window.webContents.executeJavaScript(`({
         closed:!document.querySelector('.settings-overlay').checkVisibility(),
         editor:!!document.querySelector('.prose-editor'),

@@ -24,10 +24,10 @@ const latestJsonPath = path.join(siteDir, "downloads", "latest.json");
 const indexPath = path.join(siteDir, "index.html");
 
 const HIGHLIGHTS = [
-  "修复 Windows 下载完成后无法显示安装器的问题：现在直接启动已校验的安装程序。",
-  "更新检查继续支持 GitHub API + pageport.chopperh.me 官方镜像双通道。",
-  "保留「新建空白文档」、侧栏展开按钮就近显示、本机备份载入编辑区等功能。",
-  "Windows 取消安装或启动失败时仍保留已下载的安装包，方便重试。"
+  "Windows 安装程序完成页内置「安装完成后删除安装包」选项，由安装向导完成后自动清理安装包。",
+  "接入 SignPath Foundation 开源项目代码签名规范、隐私声明与 GitHub Actions 自动签名流水线。",
+  "更新检查支持 GitHub API + pageport.chopperh.me 官方镜像双通道，下载后仍严格校验 SHA-256。",
+  "支持「新建空白文档」、侧栏展开按钮就近显示，以及本机备份载入编辑区预览后再发布。"
 ];
 const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 

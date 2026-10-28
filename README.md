@@ -30,9 +30,9 @@ PagePort 是基于 [Mark](https://github.com/kovetskiy/mark) 的本地文档发�
 
 从 [GitHub Releases](https://github.com/chopperH0824/pageport/releases) 下载
 `PagePort-版本-x64-setup.exe`，在 Windows 10/11 x64 上运行安装向导。
-默认按当前用户安装，可以选择安装目录。首版不提供 Windows ARM64 原生包。
-安装包尚未使用代码签名证书，Windows 可能显示未知发布者或 SmartScreen 提示；
-请核对来源和发布页摘要，不要关闭系统安全保护。
+默认按当前用户安装，可以选择安装目录；安装向导完成页默认勾选「安装完成后删除安装包」，完成安装后会自动清理安装文件（取消安装时不会删除）。首版不提供 Windows ARM64 原生包。
+在 SignPath Foundation 开源代码签名证书生效前，Windows 可能显示未知发布者或 SmartScreen 提示；
+请先核对来源与发布页 SHA-256 摘要，再点击「更多信息 → 仍要运行」，不要关闭系统安全保护。
 
 Windows 支持 Markdown、HTML、DOCX、TXT、Confluence 网页导出的 Word，
 以及实际为 DOCX 结构的 `.doc`。真正的旧二进制 `.doc` 需先在 Word
@@ -266,6 +266,17 @@ npm run build
 Web 生产环境启动时必须提供访问口令；Mac 应用自动管理临时本机凭证。
 不要把 `.env`、备份或真实文档提交到仓库。
 详细威胁边界与依赖审计见 [SECURITY.md](SECURITY.md)。
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- **Committers and reviewers**: [chopperH0824](https://github.com/chopperH0824)
+- **Approvers**: [chopperH0824](https://github.com/chopperH0824)
+- **Privacy policy**: This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+  - Document conversion runs locally on `127.0.0.1` using the bundled [Mark](https://github.com/kovetskiy/mark) binary.
+  - Confluence page inspection, backup, and publishing connect only to the HTTPS Confluence instance explicitly configured by the user.
+  - Update checks query public release metadata from GitHub (`https://api.github.com` / `https://github.com`) or the official mirror (`https://pageport.chopperh.me/downloads/latest.json`) and can be disabled in **Settings → Software Updates**.
 
 ## 开源
 

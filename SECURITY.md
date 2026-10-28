@@ -74,6 +74,18 @@ Re-evaluate this reachability and upstream fixes on every dependency update.
 Mark binaries in Docker and CI are pinned to 16.22.0 and checked against SHA-256.
 Keep the lockfile committed. Run tests and audit when updating dependencies.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- **Committers and reviewers**: [chopperH0824](https://github.com/chopperH0824)
+- **Approvers**: [chopperH0824](https://github.com/chopperH0824)
+- **Privacy policy**: This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+  - All document conversions run locally via the bundled Mark executable on `127.0.0.1`.
+  - Confluence connections occur only when the user explicitly checks or publishes to their chosen HTTPS Confluence server.
+  - Release update checks fetch public version metadata from `https://api.github.com` (with fallback to `https://pageport.chopperh.me/downloads/latest.json`) and can be disabled in the application's Update preferences.
+- **Artifact scope**: Only PagePort's own installer and application binaries built on GitHub-hosted runners are signed with the project's SignPath policy; bundled upstream OSS binaries (`mark.exe`) remain unsigned upstream artifacts inside the installer.
+
 ## Reporting
 
 Do not publish private content, credentials or exploit details in a public issue.

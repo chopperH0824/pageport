@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -16,8 +16,19 @@ try {
   const target = path.join(parent, 'PagePort');
   execFileSync(installer, ['/S', `/D=${parent}`], { timeout: 120000, stdio: 'inherit' });
   if (!(await readdir(parent)).includes('PagePort')) throw new Error('Installer must create its own PagePort directory.');
-  execFileSync(installer, ['/S', `/D=${target}`], { timeout: 120000, stdio: 'inherit' });
+  const disposableInstaller = path.join(root, `PagePort-${version}-x64-setup (1).exe`);
+  await copyFile(installer, disposableInstaller);
+  execFileSync(disposableInstaller, ['/S', '--delete-installer', `/D=${target}`], { timeout: 120000, stdio: 'inherit' });
   if ((await readdir(target)).includes('PagePort')) throw new Error('Installer duplicated the PagePort directory.');
+  const cleanupDeadline = Date.now() + 10000;
+  while (Date.now() < cleanupDeadline) {
+    const stillExists = await stat(disposableInstaller).then(() => true, () => false);
+    if (!stillExists) break;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  if (await stat(disposableInstaller).then(() => true, () => false)) {
+    throw new Error('Installer did not delete itself after installation when requested.');
+  }
   const unpacked = await readFile('release/win-unpacked/resources/app.asar');
   const installed = await readFile(path.join(target, 'resources/app.asar'));
   const sha = bytes => createHash('sha256').update(bytes).digest('hex');

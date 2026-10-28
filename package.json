@@ -1,6 +1,6 @@
 {
   "name": "pageport",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "description": "A local-first Confluence document publisher for macOS and Windows, powered by Mark",
   "author": "PagePort contributors",
   "license": "MIT",
@@ -78,8 +78,14 @@
     ],
     "mac": {
       "extraResources": [
-        { "from": "resources/mark", "to": "bin/mark" },
-        { "from": "resources/mark-LICENSE", "to": "licenses/mark-LICENSE" }
+        {
+          "from": "resources/mark",
+          "to": "bin/mark"
+        },
+        {
+          "from": "resources/mark-LICENSE",
+          "to": "licenses/mark-LICENSE"
+        }
       ],
       "category": "public.app-category.productivity",
       "icon": "resources/icon.icns",
@@ -92,10 +98,18 @@
     "win": {
       "icon": "resources/icon.ico",
       "artifactName": "PagePort-${version}-${arch}-setup.${ext}",
-      "target": [ "nsis" ],
+      "target": [
+        "nsis"
+      ],
       "extraResources": [
-        { "from": "resources/mark.exe", "to": "bin/mark.exe" },
-        { "from": "resources/mark-LICENSE", "to": "licenses/mark-LICENSE" }
+        {
+          "from": "resources/mark.exe",
+          "to": "bin/mark.exe"
+        },
+        {
+          "from": "resources/mark-LICENSE",
+          "to": "licenses/mark-LICENSE"
+        }
       ]
     },
     "nsis": {

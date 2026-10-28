@@ -25,7 +25,9 @@ if(packaged || installed) {
 }
 const output = process.env.PAGEPORT_SMOKE_DIR || await mkdtemp(path.join(tmpdir(), 'pageport-check-'));
 const args = [...(packaged || installed ? [] : ['.']), '--smoke', '--smoke-toc', '--smoke-editor', '--smoke-updates'];
-const child = spawn(executable, args, { stdio: 'inherit', env: { ...process.env, PAGEPORT_SMOKE_DIR: output } });
+const childEnv = { ...process.env, PAGEPORT_SMOKE_DIR: output };
+delete childEnv.ELECTRON_RUN_AS_NODE;
+const child = spawn(executable, args, { stdio: 'inherit', env: childEnv });
 const timer = setTimeout(() => { child.kill(); }, 180000);
 const code = await new Promise((resolve, reject) => { child.once('exit', resolve); child.once('error', reject); });
 clearTimeout(timer);

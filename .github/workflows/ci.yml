@@ -1,6 +1,7 @@
 name: CI
 on: [push, pull_request, workflow_dispatch]
 permissions:
+  actions: read
   contents: read
 jobs:
   test:
@@ -47,6 +48,33 @@ jobs:
         env:
           PAGEPORT_SMOKE_DIR: artifacts/windows-development
       - run: npm run package:windows
+      - name: Upload unsigned Windows installer for SignPath
+        id: upload-unsigned-installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: pageport-windows-x64-unsigned
+          path: release/*-setup.exe
+          if-no-files-found: error
+      - name: Sign Windows installer with SignPath
+        id: signpath
+        if: env.SIGNPATH_API_TOKEN != '' && env.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'pageport' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'nsis-installer' }}
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: release-signed
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID || secrets.SIGNPATH_ORGANIZATION_ID }}
+      - name: Use signed Windows installer
+        if: steps.signpath.outcome == 'success'
+        shell: pwsh
+        run: Copy-Item release-signed\*-setup.exe release\ -Force
       - name: Check packaged desktop
         run: node scripts/smoke-desktop.mjs --packaged
         env:

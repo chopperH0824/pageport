@@ -81,3 +81,19 @@ test("download page assets and section links resolve locally", () => {
   assert.ok(!html.includes("xattr -cr"), "do not suggest removing quarantine recursively");
   assert.ok(!html.includes("0.4.0"), "no stale installer fallback");
 });
+
+test("download site, README, and NSIS script include SignPath policy and in-installer cleanup", () => {
+  const readme = fs.readFileSync(new URL("README.md", root), "utf8");
+  const nsis = fs.readFileSync(new URL("desktop/installer.nsh", root), "utf8");
+  const requiredPrivacy =
+    "This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.";
+
+  for (const content of [html, readme]) {
+    assert.ok(content.includes("Code signing policy"));
+    assert.ok(content.includes("https://about.signpath.io"));
+    assert.ok(content.includes("https://signpath.org"));
+    assert.ok(content.includes(requiredPrivacy));
+  }
+  assert.ok(nsis.includes('!define MUI_FINISHPAGE_SHOWREADME_TEXT "安装完成后删除安装包"'));
+  assert.ok(nsis.includes("PagePortScheduleDeleteInstaller"));
+});
