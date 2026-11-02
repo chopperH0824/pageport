@@ -643,9 +643,13 @@ async function start() {
       const brandBytes=await readFile(path.join(appRoot,'dist','brand.png'));
       const synthetic=`<h1>本地保存验证</h1><p><img width="160" src="data:image/png;base64,${brandBytes.toString('base64')}" alt="PagePort 测试图"></p>`+
         Array.from({length:12},(_,index)=>`<h2>跳转章节 ${index+1}</h2>${'<p>用于验证目录滚动和本地保存的公开合成正文。</p>'.repeat(12)}`).join('');
+      const confluenceHtml=synthetic.replace(/src="data:[^"]+"/,'src="embedded-image"');
+      const confluenceMime='Subject: Exported From Confluence\r\nMIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="pageport-smoke"\r\n\r\n'+
+        '--pageport-smoke\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n'+Buffer.from(confluenceHtml).toString('base64')+'\r\n'+
+        '--pageport-smoke\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\nContent-Location: file:///embedded-image\r\n\r\n'+brandBytes.toString('base64')+'\r\n--pageport-smoke--\r\n';
       await window.webContents.executeJavaScript(`(() => {
         const input=document.querySelector('.sidebar input[type="file"]'), transfer=new DataTransfer();
-        transfer.items.add(new File([${JSON.stringify(synthetic)}],'本地保存验证.html',{type:'text/html'}));
+        transfer.items.add(new File([${JSON.stringify(confluenceMime)}],'本地保存验证.doc',{type:'application/msword'}));
         input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
       })()`);
       const importDeadline=Date.now()+15000;
@@ -697,7 +701,7 @@ async function start() {
             imagePreserved=images.some(image=>image.equals(brandBytes));
           } else if(format==='doc') {
             const {extractConfluenceExport}=await import('../server/confluence-export.js');
-            imagePreserved=extractConfluenceExport(bytes)?.html.includes(brandBytes.toString('base64'));
+            imagePreserved=(await extractConfluenceExport(bytes))?.html.includes(brandBytes.toString('base64'));
           } else imagePreserved=bytes.toString().includes(brandBytes.toString('base64'));
           state.saving.push({format,bytes:bytes.length,passed:!!imagePreserved});
         }

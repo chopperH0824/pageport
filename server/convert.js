@@ -174,12 +174,12 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
     assets.push(asset);
     return asset;
   }
-  const confluenceExport = extractConfluenceExport(file.buffer);
+  const confluenceExport = await extractConfluenceExport(file.buffer);
   const office = confluenceExport ? null : await prepareOffice(file.originalname, file.buffer, scratchRoot, warnings);
   if (confluenceExport) {
     html = confluenceExport.html;
     if (confluenceExport.title) title = confluenceExport.title;
-    warnings.push(confluenceExport.pageport ? '已读取 PagePort 导出的 Word 兼容文档及内嵌图片。' : '这是从 Confluence 网页导出的 Word 文件，已按页面正文、表格、单元格颜色、勾选标记和原图地址还原。');
+    warnings.push(confluenceExport.pageport ? '已读取 PagePort 导出的 Word 兼容文档及内嵌图片。' : '这是从 Confluence 网页导出的 Word 文件，已按页面正文、表格、单元格颜色、勾选标记、内嵌图片和原图地址还原。');
   } else if (office) {
     await checkDocx(office);
     let skippedImages = 0;

@@ -1,4 +1,5 @@
 import { load } from 'cheerio';
+import { fileTypeFromBuffer } from 'file-type';
 
 const emoticons = {
   tick:'✓', cross:'✗', warning:'⚠', information:'i', plus:'+', minus:'−', question:'?',
@@ -6,6 +7,23 @@ const emoticons = {
   'yellow-star':'★', 'red-star':'★', 'green-star':'★', 'blue-star':'★', heart:'♥', 'broken-heart':'♡',
 };
 const keptStyle = new Set(['text-align', 'color', 'background-color', 'width']);
+const embeddedImageTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+
+function referenceKeys(reference) {
+  const value = String(reference || '').trim().replace(/^<|>$/g, '').replace(/^"|"$/g, '');
+  if (!value) return [];
+  const keys = new Set([value]);
+  if (/^cid:/i.test(value)) keys.add(`cid:${value.slice(4)}`);
+  try { keys.add(decodeURIComponent(value)); } catch {}
+  // Confluence uses file:///image-id in MIME headers and just image-id in HTML.
+  // Never use a remote URL's basename to associate an unrelated local image.
+  for (const key of [...keys]) {
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(key) || /^file:/i.test(key)) {
+      keys.add(key.replaceAll('\\', '/').split('/').pop());
+    }
+  }
+  return [...keys].filter(Boolean);
+}
 
 function decodeQuotedPrintable(value) {
   const folded = value.replace(/=\r\n/g, '').replace(/=\n/g, '');
@@ -39,35 +57,47 @@ function cleanStyle(style) {
   }).filter(Boolean).join('; ');
 }
 
-export function extractConfluenceExport(buffer) {
+export async function extractConfluenceExport(buffer) {
   const probe = buffer.slice(0, 1200).toString('latin1');
   if (!/MIME-Version:/i.test(probe) || !/multipart\//i.test(probe)) return null;
   const source = buffer.toString('latin1');
-  const boundary = /boundary="([^"]+)"/i.exec(source)?.[1];
+  const boundaryMatch = /boundary=(?:"([^"]+)"|([^;\s]+))/i.exec(source);
+  const boundary = boundaryMatch?.[1] || boundaryMatch?.[2];
   const pageport = /^X-PagePort-Document:\s*1\s*$/im.test(probe);
   if (!boundary || (!pageport && !/Exported From Confluence|confluence(?:Table|Td|Th)/i.test(source))) return null;
   let html = '';
   const images = new Map();
   for (const part of source.split(`--${boundary}`)) {
-    const split = part.indexOf('\r\n\r\n');
-    if (split < 0) continue;
-    const headers = part.slice(0, split);
-    let body = part.slice(split + 4);
-    if (body.endsWith('\r\n')) body = body.slice(0, -2);
+    const separator = /\r?\n\r?\n/.exec(part);
+    if (!separator) continue;
+    const headers = part.slice(0, separator.index).replace(/\r?\n[ \t]+/g, ' ');
+    const body = part.slice(separator.index + separator[0].length).replace(/\r?\n$/, '');
     const type = (/Content-Type:\s*([^;\r\n]+)/i.exec(headers)?.[1] || '').trim().toLowerCase();
     if (type === 'text/html' && !html) html = decodePart(headers, body).toString('utf8');
-    if (pageport && /^image\/(png|jpeg|gif|webp)$/.test(type)) {
+    if (type.startsWith('image/') || type === 'application/octet-stream') {
+      const bytes = decodePart(headers, body);
+      const actualType = await fileTypeFromBuffer(bytes);
+      if (!actualType || !embeddedImageTypes.has(actualType.mime)) continue;
       const id = /Content-ID:\s*<([^>]+)>/i.exec(headers)?.[1];
-      if (id) images.set(`cid:${id}`,`data:${type};base64,${decodePart(headers,body).toString('base64')}`);
+      const location = /Content-Location:\s*([^\r\n]+)/i.exec(headers)?.[1];
+      const image = `data:${actualType.mime};base64,${bytes.toString('base64')}`;
+      for (const reference of [id && `cid:${id}`, location]) {
+        for (const key of referenceKeys(reference)) {
+          if (!images.has(key)) images.set(key, image);
+          else if (images.get(key) !== image) images.set(key, null);
+        }
+      }
     }
   }
   if (!html) return null;
   const page = load(html);
+  page('img').each((_, node) => {
+    const item = page(node);
+    const embedded = [item.attr('src'), item.attr('data-image-src')]
+      .flatMap(referenceKeys).map(key => images.get(key)).find(Boolean);
+    if (embedded) item.attr('src', embedded).removeAttr('data-image-src');
+  });
   if (pageport) {
-    page('img').each((_,node)=>{
-      const image=page(node), embedded=images.get(image.attr('src'));
-      if (embedded) image.attr('src',embedded);
-    });
     return {html:page('body').html() || '',title:page('h1').first().text().trim(),pageport:true};
   }
   const origin = page('a[href^="http"]').toArray().map(node => {
