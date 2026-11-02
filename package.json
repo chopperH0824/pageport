@@ -4,7 +4,7 @@
   "description": "A local-first Confluence document publisher for macOS and Windows, powered by Mark",
   "author": "PagePort contributors",
   "license": "MIT",
-  "main": "desktop/main.cjs",
+  "main": "desktop/entry.cjs",
   "type": "module",
   "scripts": {
     "dev": "node server/index.js",
@@ -14,6 +14,8 @@
     "prepare:mac": "node scripts/prepare-mac.mjs",
     "prepare:windows": "node scripts/prepare-windows.mjs",
     "smoke:desktop": "node scripts/smoke-desktop.mjs",
+    "smoke:gateway": "node scripts/smoke-gateway.mjs",
+    "package:gateway": "node scripts/package-gateway.mjs",
     "test:windows-installer": "node scripts/test-windows-installer.mjs",
     "desktop": "npm run build && electron .",
     "package:mac": "npm run build && electron-builder --mac --publish never",

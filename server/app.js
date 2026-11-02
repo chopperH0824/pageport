@@ -119,7 +119,7 @@ async function cleanupBackups(dataDir, retentionDays) {
   }
   return { removed, retentionDays: days };
 }
-export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || path.resolve('data'), accessPassword = process.env.ACCESS_PASSWORD || '', allowedHosts = (process.env.CONFLUENCE_HOSTS || '').split(',').map(s => s.trim()).filter(Boolean), production = process.env.NODE_ENV === 'production', desktopToken = process.env.PAGEPORT_DESKTOP_TOKEN || '' } = {}) {
+export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || path.resolve('data'), accessPassword = process.env.ACCESS_PASSWORD || '', allowedHosts = (process.env.CONFLUENCE_HOSTS || '').split(',').map(s => s.trim()).filter(Boolean), production = process.env.NODE_ENV === 'production', desktopToken = process.env.PAGEPORT_DESKTOP_TOKEN || '', gatewayGuard = null } = {}) {
   if (production && accessPassword.length < 16) throw new Error('Production requires ACCESS_PASSWORD with at least 16 characters.');
   const app = express(), sessions = new Map();
   let activeConversions = 0;
@@ -132,32 +132,36 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
     next();
   };
   app.disable('x-powered-by');
+  const localAccess = !!desktopToken || !!gatewayGuard;
+  if (gatewayGuard) app.use(gatewayGuard);
   if (desktopToken) app.use((req,res,next)=>safeEqual(req.get('X-PagePort-Desktop'),desktopToken) ? next() : res.status(403).json({error:'仅允许 PagePort 本地应用访问。'}));
   if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 'loopback');
   app.use(helmet({ contentSecurityPolicy: production ? { directives: {
     defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'","'unsafe-inline'"],
     imgSrc: ["'self'",'data:','blob:'], connectSrc: ["'self'"], frameSrc: ["'self'",'blob:'],
     objectSrc: ["'none'"], baseUri: ["'none'"], formAction: ["'self'"], frameAncestors: ["'self'"],
+    ...(gatewayGuard ? { upgradeInsecureRequests: null } : {}),
   }} : false, crossOriginEmbedderPolicy: false }));
   app.use('/api', (_,res,next) => { res.set('Cache-Control','no-store'); next(); });
   app.use(express.json({ limit: '64kb' }));
   const session = (req,res,next) => {
-    const cookie = req.headers.cookie?.split(';').map(s=>s.trim()).find(s=>s.startsWith('pageport='))?.slice(9);
+    const cookieName = gatewayGuard ? `pageport-${req.socket.localPort}` : 'pageport';
+    const cookie = req.headers.cookie?.split(';').map(s=>s.trim()).find(s=>s.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
     let s = cookie && sessions.get(cookie);
     if (!s || s.expires < Date.now()) {
       if (cookie) sessions.delete(cookie);
       for (const [key,value] of sessions) if (value.expires < Date.now()) sessions.delete(key);
       if (sessions.size >= 100) return next(new AppError('当前会话较多，请稍后再试。',503));
       const id = random();
-      s = { id, csrf: random(), authenticated: !!desktopToken || !accessPassword, expires: Date.now()+sessionLifetime, documents: new Map(), plans: new Map() };
+      s = { id, csrf: random(), authenticated: localAccess || !accessPassword, expires: Date.now()+sessionLifetime, documents: new Map(), plans: new Map() };
       sessions.set(id,s);
-      res.cookie('pageport',id,{httpOnly:true,secure:production && !desktopToken,sameSite:'strict',maxAge:sessionLifetime,path:'/'});
+      res.cookie(cookieName,id,{httpOnly:true,secure:production && !localAccess,sameSite:'strict',maxAge:sessionLifetime,path:'/'});
     }
     req.session = s;
     next();
   };
   app.use('/api',session);
-  app.get('/api/bootstrap',(req,res)=>res.json({csrf:req.session.csrf,authenticated:req.session.authenticated,requiresAccess:!!accessPassword && !desktopToken,desktop:!!desktopToken,hosts:req.session.authenticated?allowedHosts:[]}));
+  app.get('/api/bootstrap',(req,res)=>res.json({csrf:req.session.csrf,authenticated:req.session.authenticated,requiresAccess:!!accessPassword && !localAccess,desktop:!!desktopToken,gateway:!!gatewayGuard,hosts:req.session.authenticated?allowedHosts:[]}));
   app.use('/api',(req,res,next)=>{
     if (req.method !== 'GET') {
       if (req.headers.origin) {
@@ -178,7 +182,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
   app.use('/api',(req,res,next)=>req.session.authenticated ? next() : next(new AppError('请先输入网站访问口令。',401)));
   app.get('/api/health',(_,res)=>res.json({ok:true,engine:'Mark',compatibility:'Confluence 7.6',formats:['md','html','docx','doc','txt']}));
   const upload = multer({ storage:multer.memoryStorage(), limits: { fields:0 } });
-  app.post('/api/convert',rateLimit({windowMs:60*1000,limit:desktopToken?90:30,legacyHeaders:false}), (req,res,next) => {
+  app.post('/api/convert',rateLimit({windowMs:60*1000,limit:localAccess?90:30,legacyHeaders:false}), (req,res,next) => {
     const length = Number(req.get('content-length'));
     if (!Number.isSafeInteger(length) || length <= 0) return next(new AppError('上传必须包含有效的文件大小。',411));
     next();
@@ -232,7 +236,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
     try {
       // The desktop origin is protected by a per-launch secret. Its user explicitly chooses the target.
       let hosts = allowedHosts;
-      if (desktopToken) {
+      if (localAccess) {
         try { hosts = [new URL(req.body.url).hostname]; } catch { throw new AppError('请输入完整的 HTTPS Confluence 页面链接。'); }
       }
       const auth = credentials(req.body), target = parseTarget(req.body.url,hosts);

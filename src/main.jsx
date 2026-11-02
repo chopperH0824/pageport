@@ -319,6 +319,12 @@ function App() {
     savingRef.current=true;setSaving(true);
     const seq=generation.current, format=saveFormat;
     try {
+      const suggested=(file?.name || 'document').replace(/\.[^.]+$/,'')+`.${format}`;
+      const exportMime={md:'text/markdown',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',doc:'application/msword'}[format];
+      // Browser file pickers require the original click's transient activation.
+      const browserHandle=!window.pageportDesktop?.saveDocument && typeof window.showSaveFilePicker==='function'
+        ? await window.showSaveFilePicker({suggestedName:suggested,types:[{description:{md:'Markdown',docx:'Word 文档',doc:'Word 兼容文档（MHTML）'}[format],accept:{[exportMime]:[`.${format}`]}}]})
+        : null;
       if(pending.current || draft.current.applied!==draft.current.revision)await flushDraft();
       if(seq!==generation.current)return;
       const snapshot=currentDocument.current, revision=draft.current.revision;
@@ -336,7 +342,6 @@ function App() {
         if(!response.ok)throw new Error((await response.json()).error || '导出失败。');
         buffer=new Uint8Array(await response.arrayBuffer());mime=response.headers.get('content-type');
       }
-      const suggested=(file?.name || 'document').replace(/\.[^.]+$/,'')+`.${format}`;
       const finish=(name,token,handle)=>{
         if(seq!==generation.current)return;
         fileToken.current=token;fileHandle.current=handle;
@@ -351,8 +356,8 @@ function App() {
         finish(result.name,result.token,null);
         return;
       }
-      if(typeof window.showSaveFilePicker==='function') {
-        const handle=await window.showSaveFilePicker({suggestedName:suggested,types:[{description:{md:'Markdown',docx:'Word 文档',doc:'Word 兼容文档（MHTML）'}[format],accept:{[mime.split(';')[0]]:[`.${format}`]}}]});
+      if(browserHandle) {
+        const handle=browserHandle;
         const writable=await handle.createWritable();
         await writable.write(new Blob([buffer],{type:mime}));
         await writable.close();
@@ -363,6 +368,7 @@ function App() {
       const anchor=window.document.createElement('a');anchor.href=link;anchor.download=suggested;anchor.click();
       setTimeout(()=>window.URL.revokeObjectURL(link),1000);
       finish(suggested,null,null);
+      setNotice(`已生成 ${suggested} 下载文件，内嵌图片已核对。`);
     } catch(err) {
       if(err?.name==='AbortError')return;
       setError(err.message || '保存失败');
@@ -514,7 +520,7 @@ function App() {
     <header className="topbar">
       <button className="mobile-menu icon-button" title="打开文档栏" aria-label="打开文档栏" onClick={()=>setSidebar(!sidebar)}><Files size={20}/></button>
       <a href="/" className="brand"><img src="/brand.png" alt="" width="32" height="32"/><span>PagePort</span><span className="brand-divider"/><span className="brand-sub">文档发布台</span></a>
-      <nav className="top-actions"><span className="engine-status"><span className="status-dot"/>Mark 引擎</span><span className="secure-indicator" title={boot.desktop?'转换与认证均在本机运行，不经过第三方发布服务器':'凭据仅用于本次请求，不保存密码'}><ShieldCheck size={15}/>{boot.desktop?'本机运行':'安全会话'}</span>
+      <nav className="top-actions"><span className="engine-status"><span className="status-dot"/>Mark 引擎</span><span className="secure-indicator" title={boot.desktop||boot.gateway?'转换与认证均在本机运行，不经过第三方发布服务器':'凭据仅用于本次请求，不保存密码'}><ShieldCheck size={15}/>{boot.gateway?'本地网关':boot.desktop?'本机运行':'安全会话'}</span>
         <SettingsPanel busy={!!busy} historyCount={history.length} api={api} onOpenBackup={openBackup} onDemo={loadDemo} onHistory={()=>setShowHistory(true)}
           onLogout={async()=>{
             if(busy || (dirty && !window.confirm('当前修改尚未保存到文件。清除会话将丢失这些修改，确定继续？')))return;

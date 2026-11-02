@@ -82,6 +82,21 @@ test("download page assets and section links resolve locally", () => {
   assert.ok(!html.includes("0.4.0"), "no stale installer fallback");
 });
 
+test("no-install gateway entry has explicit launch and company-policy boundaries", () => {
+  assert.equal($("#local-start").attr("type"), "button");
+  assert.equal($("#gateway [data-download-os]").length, 2);
+  assert.equal($("#download-gateway").length, 1);
+  assert.ok($("#gateway").text().includes("完整解压"));
+  assert.ok($("#gateway").text().includes("不会绕过应用白名单"));
+  assert.ok($("#gateway").text().includes("首次需要手动启动"));
+  for (const asset of meta.gateways || []) {
+    assert.match(asset.sha256, /^[a-f0-9]{64}$/);
+    assert.ok(asset.sizeBytes > 0);
+    assert.equal(asset.filename, `PagePort-${meta.version}-${asset.id === "mac" ? "arm64" : "x64"}-gateway.zip`);
+    assert.equal(asset.versionedDownloadUrl, `/downloads/${asset.filename}`);
+  }
+});
+
 test("download site, README, and NSIS script include SignPath policy and in-installer cleanup", () => {
   const readme = fs.readFileSync(new URL("README.md", root), "utf8");
   const nsis = fs.readFileSync(new URL("desktop/installer.nsh", root), "utf8");

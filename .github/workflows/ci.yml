@@ -79,6 +79,12 @@ jobs:
         run: node scripts/smoke-desktop.mjs --packaged
         env:
           PAGEPORT_SMOKE_DIR: artifacts/windows-packaged
+      - name: Package no-install browser gateway
+        run: npm run package:gateway
+      - name: Verify extracted no-install gateway
+        run: node scripts/smoke-gateway.mjs --archive
+        env:
+          PAGEPORT_SMOKE_DIR: artifacts/windows-gateway
       - name: Install, verify and uninstall in isolated location
         run: npm run test:windows-installer
         env:
@@ -86,7 +92,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: pageport-windows-x64
-          path: release/*-setup.exe
+          path: |
+            release/*-setup.exe
+            release/*-gateway.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

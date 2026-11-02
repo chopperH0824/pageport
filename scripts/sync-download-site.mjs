@@ -27,7 +27,8 @@ const HIGHLIGHTS = [
   "修复左侧目录跳转，支持从编辑、发布预览、源文件和检查项定位到正文标题。",
   "本地保存可选 DOCX、Word 兼容 DOC 或 Markdown，已载入的本地图片随文件内嵌保存。",
   "DOCX 导出逐张核对内嵌图片完整性；缺图或仅有远程地址时明确提示，不静默丢图。",
-  "移除固定导入体积、图片大小和数量上限，保留异常压缩包、加密与转换超时保护。"
+  "移除固定导入体积、图片大小和数量上限，保留异常压缩包、加密与转换超时保护。",
+  "新增解压即用的本地浏览器网关，无需安装 Node、Go 或 Word。"
 ];
 const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 
@@ -80,6 +81,10 @@ let assets = [
     latestAlias: "PagePort-latest-x64-setup.exe"
   })
 ].filter(Boolean);
+let gateways = [
+  readInstaller({ id: "mac", os: "macOS", arch: "arm64", label: "macOS", detail: "Apple Silicon · macOS 13+", filename: `PagePort-${version}-arm64-gateway.zip`, latestAlias: "PagePort-latest-arm64-gateway.zip" }),
+  readInstaller({ id: "windows", os: "Windows", arch: "x64", label: "Windows", detail: "Windows 10/11 x64", filename: `PagePort-${version}-x64-gateway.zip`, latestAlias: "PagePort-latest-x64-gateway.zip" })
+].filter(Boolean);
 
 let publishedAt;
 if (process.argv.includes("--github")) {
@@ -113,9 +118,23 @@ if (process.argv.includes("--github")) {
       githubDownloadUrl: asset.browser_download_url
     };
   });
+  gateways = ["mac", "windows"].map((id) => {
+    const filename = id === "mac" ? `PagePort-${version}-arm64-gateway.zip` : `PagePort-${version}-x64-gateway.zip`;
+    const asset = release.assets.find((item) => item.name === filename);
+    if (!asset || asset.state !== "uploaded" || !asset.size || !/^sha256:[a-f0-9]{64}$/.test(asset.digest)) {
+      throw new Error(`正式 Release 缺少有效免安装包或摘要：${filename}`);
+    }
+    return {
+      id, os: id === "mac" ? "macOS" : "Windows", arch: id === "mac" ? "arm64" : "x64",
+      label: id === "mac" ? "macOS" : "Windows", detail: id === "mac" ? "Apple Silicon · macOS 13+" : "Windows 10/11 x64",
+      filename, latestAlias: id === "mac" ? "PagePort-latest-arm64-gateway.zip" : "PagePort-latest-x64-gateway.zip",
+      sizeBytes: asset.size, sizeFormatted: `${(asset.size / (1024 * 1024)).toFixed(1)} MB`, sha256: asset.digest.slice(7),
+      directDownloadUrl: `/downloads/${filename}`, versionedDownloadUrl: `/downloads/${filename}`, githubDownloadUrl: asset.browser_download_url
+    };
+  });
 }
 const hasInstallers = assets.some((item) => item.id === "mac") && assets.some((item) => item.id === "windows");
-if (!hasInstallers) {
+if (!hasInstallers || gateways.length !== 2) {
   throw new Error(`v${version} 安装包不齐。请先准备安装包，或使用 --github 同步正式 Release。未修改官网。`);
 }
 
@@ -133,6 +152,10 @@ if (hasInstallers) {
     githubRepoUrl: "https://github.com/chopperH0824/pageport",
     highlights: HIGHLIGHTS,
     assets: assets.map(({ mtime, ...asset }) => {
+      void mtime;
+      return asset;
+    }),
+    gateways: gateways.map(({ mtime, ...asset }) => {
       void mtime;
       return asset;
     })
@@ -166,6 +189,11 @@ if (hasInstallers) {
     $(`#sha-${id}-text`).text(`${asset.label} SHA-256: ${asset.sha256.slice(0, 8)}…${asset.sha256.slice(-8)}`);
     $(`#download-${id}, #package-${id}-link`).attr("href", asset.versionedDownloadUrl);
   }
+  const gateway = gateways.find(asset => asset.id === "mac");
+  $("#download-gateway").attr("href", gateway.versionedDownloadUrl).removeAttr("aria-disabled");
+  $("#gateway-file").text(`${gateway.filename} · ${gateway.sizeFormatted}`);
+  $("#gateway-sha").text(`macOS SHA-256: ${gateway.sha256.slice(0, 8)}…${gateway.sha256.slice(-8)}`);
+  $("#copy-gateway-sha").removeAttr("disabled");
   const primary = assets.find((asset) => asset.id === "mac");
   $("#download-installer").attr("href", primary.versionedDownloadUrl);
   $("#download-meta").text(`DMG · v${version} · ${primary.sizeFormatted}`);
@@ -197,7 +225,7 @@ const shellQuote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 
 // Never publish metadata that refers to files absent from the deployment.
 if (!serverPull) {
-  for (const asset of assets) {
+  for (const asset of [...assets, ...gateways]) {
     const local = path.join(releaseDir, asset.filename);
     if (!fs.existsSync(local) || fs.statSync(local).size !== asset.sizeBytes
       || crypto.createHash("sha256").update(fs.readFileSync(local)).digest("hex") !== asset.sha256) {
@@ -209,7 +237,7 @@ console.log(`正在同步官网与安装包到 ${sshHost}:${remoteRoot} ...`);
 execFileSync("ssh", [sshHost, `mkdir -p ${remoteRoot}/downloads ${remoteRoot}/assets`], {
   stdio: "inherit"
 });
-const publishAssets = hasInstallers ? assets : [];
+const publishAssets = hasInstallers ? [...assets, ...gateways] : [];
 for (const asset of publishAssets) {
   const remoteFile = `${remoteRoot}/downloads/${asset.filename}`;
   if (serverPull) {

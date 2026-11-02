@@ -305,6 +305,11 @@
 
   bindCopyButton("copy-sha", () => shaByOs[selectedDownloadOs],
     () => formatShortSha(selectedDownloadOs === "mac" ? "macOS" : "Windows", shaByOs[selectedDownloadOs]));
+  bindCopyButton("copy-gateway-sha", () => releaseMetadata?.gateways?.find(item => item.id === selectedDownloadOs)?.sha256 || "");
+  document.getElementById("local-start")?.addEventListener("click", () => {
+    window.location.hash = "gateway";
+    document.getElementById("gateway").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+  });
 
   function selectDownload(os) {
     selectedDownloadOs = os === "windows" ? "windows" : "mac";
@@ -313,6 +318,25 @@
       button.classList.toggle("is-on", selected);
       button.setAttribute("aria-pressed", String(selected));
     });
+    const gateway = releaseMetadata?.gateways?.find(item => item.id === selectedDownloadOs);
+    const gatewayLink = document.getElementById("download-gateway");
+    if (gatewayLink) {
+      if (gateway) {
+        gatewayLink.href = assetHref(gateway);
+        gatewayLink.removeAttribute("aria-disabled");
+        gatewayLink.setAttribute("aria-label", `下载 ${gateway.label} 免安装网关`);
+        setText("gateway-file", `${gateway.filename} · ${gateway.sizeFormatted}`);
+        setText("gateway-sha", formatShortSha(gateway.label, gateway.sha256));
+        document.getElementById("copy-gateway-sha").disabled = false;
+      } else {
+        gatewayLink.removeAttribute("href");
+        gatewayLink.setAttribute("aria-disabled", "true");
+        setText("gateway-file", "免安装包准备中");
+        setText("gateway-sha", "暂无校验摘要");
+        document.getElementById("copy-gateway-sha").disabled = true;
+      }
+      setText("gateway-launcher", `双击 Start PagePort.${selectedDownloadOs === "mac" ? "command" : "cmd"}`);
+    }
     const asset = releaseMetadata?.assets?.find((item) => item.id === selectedDownloadOs);
     const link = document.getElementById("download-installer");
     const copy = document.getElementById("copy-sha");
