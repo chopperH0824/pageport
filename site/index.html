@@ -15,7 +15,7 @@
       <a class="brand-link" href="#download" aria-label="PagePort 首页">
         <img src="./brand.png" alt="PagePort Logo" width="36" height="36">
         <span class="brand-name">PagePort</span>
-        <span class="version-pill" id="nav-version">v0.6.0</span>
+        <span class="version-pill" id="nav-version">v0.7.0</span>
       </a>
 
       <nav class="nav-links" aria-label="主导航">
@@ -71,14 +71,14 @@
             </div>
             <div class="download-action">
               <div class="download-details">
-                <span class="download-label" id="download-meta">DMG · v0.6.0 · 159.6 MB</span>
-                <strong id="download-file">PagePort-0.6.0-arm64.dmg</strong>
+                <span class="download-label" id="download-meta">DMG · v0.7.0 · 164.8 MB</span>
+                <strong id="download-file">PagePort-0.7.0-arm64.dmg</strong>
                 <button type="button" class="sha-copy-btn" id="copy-sha" title="复制所选安装包 SHA-256">
-                  <span id="sha-text">macOS SHA-256: cb8af789…e8e7c80f</span>
+                  <span id="sha-text">macOS SHA-256: eea735e1…24ebc7fb</span>
                   <span aria-hidden="true">复制</span>
                 </button>
               </div>
-              <a class="btn btn-primary download-button" id="download-installer" href="/downloads/PagePort-0.6.0-arm64.dmg" aria-label="下载 macOS 安装包">
+              <a class="btn btn-primary download-button" id="download-installer" href="/downloads/PagePort-0.7.0-arm64.dmg" aria-label="下载 macOS 安装包">
                 <span>下载并开始</span>
                 <span aria-hidden="true">↓</span>
               </a>
@@ -108,9 +108,9 @@
             <li><strong id="gateway-launcher">双击 Start PagePort.command</strong><span>网关启动后，自动打开本机浏览器工作区。</span></li>
             <li><strong>保持网关窗口打开</strong><span>完成后先保存文档，再退出网关。</span></li>
           </ol>
-          <a class="btn btn-primary" id="download-gateway" aria-disabled="true">下载免安装版 <span aria-hidden="true">↓</span></a>
-          <p id="gateway-file">免安装包准备中</p>
-          <button class="sha-copy-btn" id="copy-gateway-sha" type="button" disabled title="复制免安装包 SHA-256"><span id="gateway-sha">暂无校验摘要</span><span>复制</span></button>
+          <a class="btn btn-primary" id="download-gateway" href="/downloads/PagePort-0.7.0-arm64-gateway.zip">下载免安装版 <span aria-hidden="true">↓</span></a>
+          <p id="gateway-file">PagePort-0.7.0-arm64-gateway.zip · 163.7 MB</p>
+          <button class="sha-copy-btn" id="copy-gateway-sha" type="button" title="复制免安装包 SHA-256"><span id="gateway-sha">macOS SHA-256: ce5357a6…5a864ca2</span><span>复制</span></button>
           <p class="gateway-note">首次需要手动启动下载的网关。普通网页无法直接拉起未安装的本机程序。macOS 为 Apple Silicon；Windows 为 x64。</p>
         </div>
       </div>
@@ -228,7 +228,7 @@
             <div class="install-panel-top"><span class="os-label">macOS</span><span class="install-platform">Apple Silicon</span></div>
             <h3>拖入“应用程序”</h3>
             <ol>
-              <li>打开 <code id="install-dmg-name">PagePort-0.6.0-arm64.dmg</code>。</li>
+              <li>打开 <code id="install-dmg-name">PagePort-0.7.0-arm64.dmg</code>。</li>
               <li>将 PagePort 拖入“应用程序”。首次打开按系统提示允许。</li>
               <li>登录你的 Confluence，开始导入和发布。</li>
             </ol>
@@ -237,7 +237,7 @@
             <div class="install-panel-top"><span class="os-label">Windows</span><span class="install-platform">x64</span></div>
             <h3>运行安装向导</h3>
             <ol>
-              <li>运行 <code id="install-exe-name">PagePort-0.6.0-x64-setup.exe</code>。</li>
+              <li>运行 <code id="install-exe-name">PagePort-0.7.0-x64-setup.exe</code>。</li>
               <li>选择安装目录。若提示 SmartScreen，先核对 SHA-256，再点「更多信息 → 仍要运行」。</li>
               <li>安装完成页默认勾选「安装完成后删除安装包」，完成后自动清理安装包并保留用户数据。</li>
             </ol>
@@ -250,13 +250,13 @@
       <div class="container release-layout">
         <div class="release-copy">
           <p class="eyebrow">最新版本</p>
-          <h2 id="release-box-title">PagePort v0.6.0 正式版</h2>
+          <h2 id="release-box-title">PagePort v0.7.0 正式版</h2>
           <p>一份轻量、可核对、适合团队协作的本地发布工作台。</p>
-          <a id="github-release-link" class="text-link" href="https://github.com/chopperH0824/pageport/releases/tag/v0.6.0" target="_blank" rel="noopener noreferrer">查看 GitHub Release →</a>
+          <a id="github-release-link" class="text-link" href="https://github.com/chopperH0824/pageport/releases/tag/v0.7.0" target="_blank" rel="noopener noreferrer">查看 GitHub Release →</a>
         </div>
         <div class="release-summary">
-          <div class="release-summary-head"><span>更新日期</span><strong id="release-date-badge">2026-10-28</strong></div>
-          <ul id="release-highlights-list"><li>Windows 安装程序完成页内置「安装完成后删除安装包」选项，由安装向导完成后自动清理安装包。</li><li>接入 SignPath Foundation 开源项目代码签名规范、隐私声明与 GitHub Actions 自动签名流水线。</li><li>更新检查支持 GitHub API + pageport.chopperh.me 官方镜像双通道，下载后仍严格校验 SHA-256。</li><li>支持「新建空白文档」、侧栏展开按钮就近显示，以及本机备份载入编辑区预览后再发布。</li></ul>
+          <div class="release-summary-head"><span>更新日期</span><strong id="release-date-badge">2026-11-02</strong></div>
+          <ul id="release-highlights-list"><li>修复左侧目录跳转，支持从编辑、发布预览、源文件和检查项定位到正文标题。</li><li>本地保存可选 DOCX、Word 兼容 DOC 或 Markdown，已载入的本地图片随文件内嵌保存。</li><li>DOCX 导出逐张核对内嵌图片完整性；缺图或仅有远程地址时明确提示，不静默丢图。</li><li>移除固定导入体积、图片大小和数量上限，保留异常压缩包、加密与转换超时保护。</li><li>新增解压即用的本地浏览器网关，无需安装 Node、Go 或 Word。</li></ul>
         </div>
       </div>
     </section>
@@ -278,16 +278,17 @@
 <script type="application/json" id="release-meta">
 {
   "product": "PagePort",
-  "version": "0.6.0",
-  "releaseDate": "2026-10-28",
+  "version": "0.7.0",
+  "releaseDate": "2026-11-02",
   "engine": "Mark 16.22.0 Built-in",
-  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.6.0",
+  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.7.0",
   "githubRepoUrl": "https://github.com/chopperH0824/pageport",
   "highlights": [
-    "Windows 安装程序完成页内置「安装完成后删除安装包」选项，由安装向导完成后自动清理安装包。",
-    "接入 SignPath Foundation 开源项目代码签名规范、隐私声明与 GitHub Actions 自动签名流水线。",
-    "更新检查支持 GitHub API + pageport.chopperh.me 官方镜像双通道，下载后仍严格校验 SHA-256。",
-    "支持「新建空白文档」、侧栏展开按钮就近显示，以及本机备份载入编辑区预览后再发布。"
+    "修复左侧目录跳转，支持从编辑、发布预览、源文件和检查项定位到正文标题。",
+    "本地保存可选 DOCX、Word 兼容 DOC 或 Markdown，已载入的本地图片随文件内嵌保存。",
+    "DOCX 导出逐张核对内嵌图片完整性；缺图或仅有远程地址时明确提示，不静默丢图。",
+    "移除固定导入体积、图片大小和数量上限，保留异常压缩包、加密与转换超时保护。",
+    "新增解压即用的本地浏览器网关，无需安装 Node、Go 或 Word。"
   ],
   "assets": [
     {
@@ -296,14 +297,14 @@
       "arch": "arm64",
       "label": "macOS",
       "detail": "Apple Silicon · macOS 13+",
-      "filename": "PagePort-0.6.0-arm64.dmg",
+      "filename": "PagePort-0.7.0-arm64.dmg",
       "latestAlias": "PagePort-latest-arm64.dmg",
-      "sizeBytes": 167344953,
-      "sizeFormatted": "159.6 MB",
-      "sha256": "cb8af789162d4d6b9f94f9f27fba0f7cac9ed2de85b8657412c940fee8e7c80f",
-      "directDownloadUrl": "/downloads/PagePort-0.6.0-arm64.dmg",
-      "versionedDownloadUrl": "/downloads/PagePort-0.6.0-arm64.dmg",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.6.0/PagePort-0.6.0-arm64.dmg"
+      "sizeBytes": 172850774,
+      "sizeFormatted": "164.8 MB",
+      "sha256": "eea735e1dafd8da182134ff4610ae042a2f981e258847f6c11a54e1724ebc7fb",
+      "directDownloadUrl": "/downloads/PagePort-0.7.0-arm64.dmg",
+      "versionedDownloadUrl": "/downloads/PagePort-0.7.0-arm64.dmg",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.0/PagePort-0.7.0-arm64.dmg"
     },
     {
       "id": "windows",
@@ -311,20 +312,53 @@
       "arch": "x64",
       "label": "Windows",
       "detail": "Windows 10/11 x64",
-      "filename": "PagePort-0.6.0-x64-setup.exe",
+      "filename": "PagePort-0.7.0-x64-setup.exe",
       "latestAlias": "PagePort-latest-x64-setup.exe",
-      "sizeBytes": 135549700,
-      "sizeFormatted": "129.3 MB",
-      "sha256": "ec523bf7b1d6eaf5d8caf3b23f27b540987df33d370e7c95274e627cebe53a45",
-      "directDownloadUrl": "/downloads/PagePort-0.6.0-x64-setup.exe",
-      "versionedDownloadUrl": "/downloads/PagePort-0.6.0-x64-setup.exe",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.6.0/PagePort-0.6.0-x64-setup.exe"
+      "sizeBytes": 139388445,
+      "sizeFormatted": "132.9 MB",
+      "sha256": "ee67047a0d436d8f9db5609f1514cd631383bd94525e58fbba59f3e9d5d50b7e",
+      "directDownloadUrl": "/downloads/PagePort-0.7.0-x64-setup.exe",
+      "versionedDownloadUrl": "/downloads/PagePort-0.7.0-x64-setup.exe",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.0/PagePort-0.7.0-x64-setup.exe"
+    }
+  ],
+  "gateways": [
+    {
+      "id": "mac",
+      "os": "macOS",
+      "arch": "arm64",
+      "label": "macOS",
+      "detail": "Apple Silicon · macOS 13+",
+      "filename": "PagePort-0.7.0-arm64-gateway.zip",
+      "latestAlias": "PagePort-latest-arm64-gateway.zip",
+      "sizeBytes": 171680193,
+      "sizeFormatted": "163.7 MB",
+      "sha256": "ce5357a6f9f2db33118a1c49ce6d1f11fc033a958a1875878abff3815a864ca2",
+      "directDownloadUrl": "/downloads/PagePort-0.7.0-arm64-gateway.zip",
+      "versionedDownloadUrl": "/downloads/PagePort-0.7.0-arm64-gateway.zip",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.0/PagePort-0.7.0-arm64-gateway.zip"
+    },
+    {
+      "id": "windows",
+      "os": "Windows",
+      "arch": "x64",
+      "label": "Windows",
+      "detail": "Windows 10/11 x64",
+      "filename": "PagePort-0.7.0-x64-gateway.zip",
+      "latestAlias": "PagePort-latest-x64-gateway.zip",
+      "sizeBytes": 197792835,
+      "sizeFormatted": "188.6 MB",
+      "sha256": "560e255f2c7a9d01433298d5c864c277b5734720099a0510a33735fe89e103eb",
+      "directDownloadUrl": "/downloads/PagePort-0.7.0-x64-gateway.zip",
+      "versionedDownloadUrl": "/downloads/PagePort-0.7.0-x64-gateway.zip",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.0/PagePort-0.7.0-x64-gateway.zip"
     }
   ]
 }
 </script>
 <!-- release-meta:end -->
   <script src="./app.js"></script>
+
 
 
 </body></html>
