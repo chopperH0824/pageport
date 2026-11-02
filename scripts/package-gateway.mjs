@@ -12,7 +12,7 @@ const source = path.join(root, 'release', mac ? 'mac-arm64/PagePort.app' : 'win-
 await stat(source);
 await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
-await cp(source, path.join(target, mac ? 'PagePort.app' : 'app'), { recursive: true, preserveTimestamps: true });
+await cp(source, path.join(target, mac ? 'PagePort.app' : 'app'), { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
 if (mac) {
   await writeFile(path.join(target, 'Start PagePort.command'), '#!/bin/sh\ncd "$(dirname "$0")"\nexec "./PagePort.app/Contents/MacOS/PagePort" --gateway\n', { mode: 0o755 });
 } else {
