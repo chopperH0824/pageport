@@ -16,6 +16,7 @@ let cleanupInstaller = true;
 const openedFiles = new Map();
 const desktopToken = randomBytes(32).toString('hex');
 const smoke = process.argv.includes('--smoke');
+const smokeShellActions = [];
 const appRoot = path.resolve(__dirname,'..');
 if(smoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'pageport-smoke-profile-')));
 
@@ -46,14 +47,23 @@ const backupsDirectory = () => path.join(app.getPath('userData'), 'data', 'backu
 async function openBackupsFolder() {
   const directory = backupsDirectory();
   await mkdir(directory, { recursive: true, mode: 0o700 });
-  const error = await shell.openPath(directory);
+  const error = smoke
+    ? (smokeShellActions.push({ action: 'open-folder', file: directory }), '')
+    : await shell.openPath(directory);
   return error ? { ok: false, error: '无法打开本机备份文件夹。' } : { ok: true };
 }
 for (const [action, handler] of Object.entries({
   state: () => updateState(),
   check: async () => { await updater.check(); return updateState(); },
   download: async () => { await updater.download(); return updateState(); },
-  reveal: () => { if (updater.state.status === 'downloaded' && updater.downloaded) shell.showItemInFolder(updater.downloaded.file); return updateState(); },
+  reveal: () => {
+    if (updater.state.status === 'downloaded' && updater.downloaded) {
+      // Exercise the trusted request without leaving real file-manager windows behind.
+      if (smoke) smokeShellActions.push({ action: 'reveal', file: updater.downloaded.file });
+      else shell.showItemInFolder(updater.downloaded.file);
+    }
+    return updateState();
+  },
   install: async () => {
     if (process.platform !== 'win32') throw new Error('当前平台请打开安装包完成更新。');
     if (updater.state.status !== 'downloaded' || !updater.downloaded?.file) throw new Error('请先下载并校验安装包。');
@@ -602,7 +612,11 @@ async function start() {
         await window.webContents.executeJavaScript(`document.querySelector('[aria-label="安装完成后删除安装包"]')?.checked === true`);
       if (process.platform !== 'win32') {
         await window.webContents.executeJavaScript(`document.querySelector('.update-modal button.primary').click()`);
+      } else {
+        await window.webContents.executeJavaScript(`window.pageportDesktop.updates.reveal()`);
       }
+      state.updates.reveal = smokeShellActions.some(item =>
+        item.action === 'reveal' && item.file === updater.downloaded?.file);
       await window.webContents.executeJavaScript(`document.querySelector('[aria-label="自动检查更新"]').click()`);
       await new Promise(resolve=>setTimeout(resolve,100));
       state.updates.preference = !automaticUpdates && JSON.parse(await readFile(path.join(app.getPath('userData'),'update-settings.json'),'utf8')).automatic === false;
@@ -634,7 +648,7 @@ async function start() {
         state.settings.keyboard && state.settings.focusTrap && state.settings.escape && state.settings.badge && state.settings.menu &&
         state.backups?.passed && state.restore?.passed && state.focusRestore && state.sidebarCollapse?.passed && state.blank?.passed;
       state.updates.passed = state.updates.heading === 'PagePort 99.0.0' && state.updates.notes && state.updates.fallback && state.updates.focused &&
-        state.updates.downloaded && state.updates.cleanupOption && state.updates.preference && state.updates.ignore && state.updates.unignore &&
+        state.updates.downloaded && state.updates.reveal && state.updates.cleanupOption && state.updates.preference && state.updates.ignore && state.updates.unignore &&
         !state.updates.overflow && !state.updates.narrowOverflow;
       window.setSize(1440,960);
       await new Promise(resolve=>setTimeout(resolve,100));
