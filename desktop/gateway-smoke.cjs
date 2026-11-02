@@ -65,6 +65,10 @@ module.exports = async ({ origin, token, controller }) => {
   }
   await writeFile(path.join(output, 'gateway-controller.png'), (await controller.webContents.capturePage()).toPNG());
   assert.ok(await controller.webContents.executeJavaScript('document.documentElement.scrollHeight<=innerHeight'), 'Gateway controller overflow.');
+  await js(`document.querySelector('[aria-label="本机备份"]').click()`);
+  await wait(`!!document.querySelector('#settings-backups')?.checkVisibility()`);
+  assert.equal(await js(`!!document.querySelector('.backup-open-folder')`), false);
+  await js(`document.querySelector('[aria-label="关闭设置"]').click()`);
   for (const width of [1440, 940, 390]) {
     browser.setSize(width, 900);
     await new Promise(r => setTimeout(r, 200));

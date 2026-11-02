@@ -84,7 +84,7 @@ function BackupPanel({ active, api, onOpenBackup }) {
   };
 
   return <div className="backup-content">
-    <div className="backup-overview"><div><h3>本机页面备份</h3><p>发布前自动保存的原文快照，仅保留在本机，不会上传到第三方。</p></div><button className="small-button backup-open-folder" onClick={openFolder}><FolderOpen size={15}/>打开备份文件夹</button></div>
+    <div className="backup-overview"><div><h3>本机页面备份</h3><p>发布前自动保存的原文快照，仅保留在本机，不会上传到第三方。</p></div>{window.pageportDesktop?.openBackups && <button className="small-button backup-open-folder" onClick={openFolder}><FolderOpen size={15}/>打开备份文件夹</button>}</div>
     {error && <p className="backup-message backup-error" role="alert">{error}</p>}
     {notice && <p className="backup-message" role="status">{notice}</p>}
     <section className="backup-retention"><div className="backup-section-heading"><div><strong>自动清理</strong><p>默认 7 天；升级前已有的备份不会被自动删除，保存后按规则清理。</p></div><RefreshCw size={16}/></div>
