@@ -223,11 +223,8 @@ function App() {
   },[source,sync]);
   useEffect(()=>{
     if(headingTarget===null || tab!=='preview' || readOnly)return;
-    const frame=requestAnimationFrame(()=>{
-      navigateToHeading(rich.current,headingTarget.pos);
-      setHeadingTarget(null);
-    });
-    return()=>cancelAnimationFrame(frame);
+    navigateToHeading(rich.current,headingTarget.pos);
+    setHeadingTarget(null);
   },[headingTarget,tab,readOnly,editorContent.version]);
   useEffect(()=>{
     const close=e=>{if(dirty){e.preventDefault();e.returnValue='';}};

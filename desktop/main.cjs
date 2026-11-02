@@ -703,6 +703,7 @@ async function start() {
         }
       } finally {dialog.showSaveDialog=originalSaveDialog;}
       await writeFile(path.join(output,'desktop-saved.png'),(await window.webContents.capturePage()).toPNG());
+      await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
       if(!state.navigation.every(item=>item.passed) || !state.saving.every(item=>item.passed))throw new Error('Outline navigation or local image export failed.');
     }
     await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
