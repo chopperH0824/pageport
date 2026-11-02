@@ -9,6 +9,7 @@ import {
 import './style.css';
 import RichEditor from './RichEditor.jsx';
 import { toMarkdown } from './markdown.js';
+import { navigateToHeading } from './heading-navigation.js';
 import SettingsPanel from './SettingsPanel.jsx';
 import './brand-theme.css';
 
@@ -161,6 +162,9 @@ function App() {
   const [resizing,setResizing] = useState(false);
   const [editorContent,setEditorContent] = useState({html:'',version:0}), [outline,setOutline] = useState([]);
   const [readOnly,setReadOnly] = useState(false), [focus,setFocus] = useState(false), [sync,setSync] = useState('ready'), [dirty,setDirty] = useState(false);
+  const [saveFormat,setSaveFormat] = useState('docx'), [saving,setSaving] = useState(false), [headingTarget,setHeadingTarget] = useState(null);
+  const currentDocument = useRef(null), savingRef = useRef(false);
+  currentDocument.current = document;
   const rich = useRef(null), draft = useRef({revision:0,applied:0,source:'',images:[],origin:'rich'}), pending = useRef(null);
   const input = useRef(), imageInput = useRef(), generation = useRef(0), initialDemoRequested = useRef(false);
   const fileToken = useRef(null), fileHandle = useRef(null);
@@ -202,6 +206,7 @@ function App() {
           draft.current.applied=snapshot.revision;
           if(snapshot.revision===draft.current.revision) {
             setDocument(nextDoc);
+            currentDocument.current=nextDoc;
             if(snapshot.origin==='source')setEditorContent(prev=>({html:nextDoc.preview,version:prev.version+1}));
           }
         }
@@ -216,17 +221,20 @@ function App() {
     const timer=setTimeout(()=>flushDraft().catch(()=>{}),1400);
     return()=>clearTimeout(timer);
   },[source,sync]);
-  function exportMarkdown() {
-    const link=window.URL.createObjectURL(new Blob([source],{type:'text/markdown;charset=utf-8'}));
-    const anchor=window.document.createElement('a');anchor.href=link;anchor.download=(file?.name || 'document').replace(/\.[^.]+$/,'')+'.md';anchor.click();
-    setTimeout(()=>window.URL.revokeObjectURL(link),1000);setDirty(false);
-  }
+  useEffect(()=>{
+    if(headingTarget===null || tab!=='preview' || readOnly)return;
+    const frame=requestAnimationFrame(()=>{
+      navigateToHeading(rich.current,headingTarget.pos);
+      setHeadingTarget(null);
+    });
+    return()=>cancelAnimationFrame(frame);
+  },[headingTarget,tab,readOnly,editorContent.version]);
   useEffect(()=>{
     const close=e=>{if(dirty){e.preventDefault();e.returnValue='';}};
     const save=e=>{if((e.metaKey || e.ctrlKey) && e.key.toLowerCase()==='s'){e.preventDefault();saveToFile().catch(err=>setError(err.message || '保存失败'));}};
     window.addEventListener('beforeunload',close);window.addEventListener('keydown',save);
     return()=>{window.removeEventListener('beforeunload',close);window.removeEventListener('keydown',save);};
-  },[dirty,source,file,document,busy]);
+  },[dirty,source,file,document,busy,saveFormat]);
   async function convert(nextFile, nextImages = [], options = {}) {
     if (!nextFile || busy === 'publish') return false;
     if(!options.replace && dirty && !window.confirm('当前修改尚未保存到文件，确定替换此文档？'))return false;
@@ -310,37 +318,58 @@ function App() {
     invalidate();setError('');setNotice('');
   }
   async function saveToFile() {
-    if(!document || busy==='publish')return;
-    try {if(pending.current || draft.current.applied!==draft.current.revision)await flushDraft();}
-    catch {return;}
-    const text=draft.current.source;
-    const suggested=(file?.name || 'document').replace(/\.[^.]+$/,'')+'.md';
+    if(!document || busy || savingRef.current)return;
+    savingRef.current=true;setSaving(true);
+    const seq=generation.current, format=saveFormat;
     try {
+      if(pending.current || draft.current.applied!==draft.current.revision)await flushDraft();
+      if(seq!==generation.current)return;
+      const snapshot=currentDocument.current, revision=draft.current.revision;
+      let buffer, mime;
+      if(format==='md') {
+        const html=new DOMParser().parseFromString(snapshot.preview,'text/html');
+        if(snapshot.blockers.length || html.querySelector('[data-confluence-image],[data-pageport-missing-image]') ||
+          [...html.images].some(image=>!image.src.startsWith('data:')))throw new Error('部分图片尚未归档，请先补齐本地图片再保存，避免丢图。');
+        buffer=new TextEncoder().encode(toMarkdown(snapshot.preview));
+        mime='text/markdown';
+      } else {
+        const response=await fetch(`/api/documents/${encodeURIComponent(snapshot.id)}/export/${format}`,{
+          method:'POST',headers:{'X-CSRF-Token':csrfRef.current},
+        });
+        if(!response.ok)throw new Error((await response.json()).error || '导出失败。');
+        buffer=new Uint8Array(await response.arrayBuffer());mime=response.headers.get('content-type');
+      }
+      const suggested=(file?.name || 'document').replace(/\.[^.]+$/,'')+`.${format}`;
+      const finish=(name,token,handle)=>{
+        if(seq!==generation.current)return;
+        fileToken.current=token;fileHandle.current=handle;
+        setFile(new File([buffer],name,{type:mime}));
+        if(revision===draft.current.revision)setDirty(false);
+        setError('');setNotice(`已保存为 ${name}，图片已嵌入文件。`);
+      };
       if(window.pageportDesktop?.saveDocument) {
-        const result=await window.pageportDesktop.saveDocument({token:fileToken.current,name:suggested,text,overwrite:/\.(md|markdown|txt)$/i.test(file?.name || '')});
+        const result=await window.pageportDesktop.saveDocument({token:fileToken.current,name:suggested,format,buffer,overwrite:format==='md' && /\.(md|markdown|txt)$/i.test(file?.name || '')});
         if(!result || result.canceled)return;
-        if(result.error){setError(result.error);return;}
-        fileToken.current=result.token;fileHandle.current=null;
-        setFile(new File([text],result.name,{type:'text/markdown'}));
-        setDirty(false);setError('');
-        setNotice(result.overwritten?`已写回 ${result.name}`:`已另存为 ${result.name}。Word 或 HTML 原件没有被改写。`);
+        if(result.error)throw new Error(result.error);
+        finish(result.name,result.token,null);
         return;
       }
       if(typeof window.showSaveFilePicker==='function') {
-        const handle=await window.showSaveFilePicker({suggestedName:suggested,types:[{description:'Markdown',accept:{'text/markdown':['.md']}}]});
+        const handle=await window.showSaveFilePicker({suggestedName:suggested,types:[{description:{md:'Markdown',docx:'Word 文档',doc:'Word 兼容文档（MHTML）'}[format],accept:{[mime.split(';')[0]]:[`.${format}`]}}]});
         const writable=await handle.createWritable();
-        await writable.write(new Blob([text],{type:'text/markdown'}));
+        await writable.write(new Blob([buffer],{type:mime}));
         await writable.close();
-        if(/\.(md|markdown|txt)$/i.test(handle.name)){fileHandle.current=handle;fileToken.current=null;setFile(new File([text],handle.name,{type:'text/markdown'}));}
-        setDirty(false);setError('');setNotice(`已保存为 ${handle.name}`);
+        finish(handle.name,null,handle);
         return;
       }
-      exportMarkdown();
-      setNotice('已下载 Markdown。浏览器不能直接改写你打开的 Word 原件。');
+      const link=window.URL.createObjectURL(new Blob([buffer],{type:mime}));
+      const anchor=window.document.createElement('a');anchor.href=link;anchor.download=suggested;anchor.click();
+      setTimeout(()=>window.URL.revokeObjectURL(link),1000);
+      finish(suggested,null,null);
     } catch(err) {
       if(err?.name==='AbortError')return;
       setError(err.message || '保存失败');
-    }
+    } finally {savingRef.current=false;setSaving(false);}
   }
   async function importDocument(options = {}) {
     if(busy)return false;
@@ -508,9 +537,9 @@ function App() {
         <button className="sidebar-row" title="为 Markdown 中的本地图片补充同名文件" onClick={()=>imageInput.current.click()} disabled={!file || !!busy}><ImagePlus size={16}/><span>配套图片</span><span className="count">{images.length}</span></button>
         {images.length>0 && <div className="image-list">{images.map((image,index)=><div key={`${image.name}-${index}`}><span title={image.name}>{image.name}</span><button className="icon-button" title={`移除 ${image.name}`} aria-label={`移除 ${image.name}`} disabled={!!busy} onClick={()=>{const next=images.filter((_,i)=>i!==index);if(document?.blockers.length)convert(file,next);else {setImages(next);draft.current.images=next;changeDraft(source,'source');}}}><X size={12}/></button></div>)}</div>}
         <div className="sidebar-separator"/>
-        <nav className="outline-nav" aria-label="文档大纲">{outline.map((item,i)=><button key={i} style={{paddingLeft:12+(item.level-1)*10}} onClick={()=>{setTab('preview');setReadOnly(false);rich.current?.chain().focus().setTextSelection(item.pos+1).scrollIntoView().run();}}>{item.text || '未命名标题'}</button>)}</nav>
+        <nav className="outline-nav" aria-label="文档大纲">{outline.map((item,i)=><button key={i} title={item.text || '未命名标题'} style={{paddingLeft:12+(item.level-1)*10}} onMouseDown={event=>event.preventDefault()} onClick={()=>{setTab('preview');setReadOnly(false);setHeadingTarget({pos:item.pos});setSidebar(false);}}>{item.text || '未命名标题'}</button>)}</nav>
         <div className="resize-handle" role="separator" aria-orientation="vertical" aria-label="拖动调整文档栏宽度" title="按住左右拖动，改变文档栏宽度" onPointerDown={e=>startResize('left',e)}/>
-        <div className="sidebar-bottom"><div className="format-label">支持格式</div><div className="format-list"><span>MD</span><span>HTML</span><span>DOCX</span><span>DOC</span><span>TXT</span></div><div className="size-note">单文件 ≤ 10 MB</div><div className="workspace-user"><span className="avatar"><LockKeyhole size={15}/></span><div><strong>{boot.desktop?'本地工作区':'私有工作区'}</strong><small>会话将在 30 分钟后失效</small></div></div></div>
+        <div className="sidebar-bottom"><div className="format-label">支持格式</div><div className="format-list"><span>MD</span><span>HTML</span><span>DOCX</span><span>DOC</span><span>TXT</span></div><div className="workspace-user"><span className="avatar"><LockKeyhole size={15}/></span><div><strong>{boot.desktop?'本地工作区':'私有工作区'}</strong><small>会话将在 30 分钟后失效</small></div></div></div>
       </aside>
       {sidebar && <button className="sidebar-scrim" aria-label="关闭文档栏" onClick={()=>setSidebar(false)}/>}
       <main className="editor">
@@ -518,7 +547,19 @@ function App() {
           <button role="tab" aria-selected={tab==='preview'} className={tab==='preview'?'selected':''} onClick={()=>setTab('preview')}><Eye size={15}/>编辑预览</button>
           <button role="tab" aria-selected={tab==='source'} className={tab==='source'?'selected':''} onClick={()=>setTab('source')}><Code2 size={15}/>源文件</button>
           <button role="tab" aria-selected={tab==='checks'} className={tab==='checks'?'selected':''} onClick={()=>setTab('checks')}><ShieldCheck size={15}/>检查项{document && <span className={document.blockers.length?'issue-count':'tab-count'}>{document.warnings.length+document.blockers.length}</span>}</button>
-        </div><span className="preview-state" title="编辑会自动更新即将发布的正文。这不会写回原始文件，写回请用「保存到文件」。">{busy==='convert' || sync==='syncing'?<><Loader2 className="spin" size={13}/>同步中</>:document?<><span className="status-dot"/>{sync==='ready'?'发布稿已同步':sync==='error'?'同步失败':'待同步'}</>:null}</span><div className="page-heading-actions">{focus && <button className="small-button focus-restore" title="退出专注模式并恢复两侧栏" aria-label="退出专注模式并恢复两侧栏" onClick={()=>{setFocus(false);setLeftOpen(true);setRightOpen(true);}}><PanelLeftOpen size={15}/><PanelRightOpen size={15}/><span>退出专注模式</span></button>}{!rightOpen && !focus && <button className="icon-button desktop-only" title="展开发布栏" aria-label="展开发布栏" onClick={()=>setRightOpen(true)}><PanelRightOpen size={18}/></button>}<button className="small-button heading-action" title="把当前编辑保存成 Markdown 文件。不会改写 Word 或 HTML 原件。" aria-label="保存到文件" disabled={!document || busy==='publish'} onClick={()=>saveToFile().catch(err=>setError(err.message || '保存失败'))}><Download size={15}/><span>保存到文件</span></button><button className="small-button heading-action" title="关闭当前文档，以便编辑另一份" aria-label="关闭当前文档" disabled={!document || busy==='publish' || busy==='convert'} onClick={closeDocument}><X size={15}/><span>关闭</span></button><button className="icon-button" title={focus?'退出专注模式':'专注模式：隐藏两侧栏，预览铺满可用宽度'} aria-label="切换专注模式" onClick={()=>setFocus(!focus)}><PanelLeftClose size={18}/></button></div></div>
+        </div><span className="preview-state" title="编辑会自动更新即将发布的正文。这不会写回原始文件，写回请用「保存到文件」。">{busy==='convert' || sync==='syncing'?<><Loader2 className="spin" size={13}/>同步中</>:document?<><span className="status-dot"/>{sync==='ready'?'发布稿已同步':sync==='error'?'同步失败':'待同步'}</>:null}</span>
+        <div className="page-heading-actions">
+          {focus && <button className="small-button focus-restore" title="退出专注模式并恢复两侧栏" aria-label="退出专注模式并恢复两侧栏" onClick={()=>{setFocus(false);setLeftOpen(true);setRightOpen(true);}}><PanelLeftOpen size={15}/><PanelRightOpen size={15}/><span>退出专注模式</span></button>}
+          {!rightOpen && !focus && <button className="icon-button desktop-only" title="展开发布栏" aria-label="展开发布栏" onClick={()=>setRightOpen(true)}><PanelRightOpen size={18}/></button>}
+          <div className="save-controls">
+            <select aria-label="保存格式" value={saveFormat} disabled={!document || !!busy || saving} onChange={event=>setSaveFormat(event.target.value)}>
+              <option value="docx">DOCX</option><option value="doc">DOC（兼容）</option><option value="md">Markdown</option>
+            </select>
+            <button className="small-button heading-action" title={saveFormat==='doc'?'保存为内嵌图片的 Word 兼容文档（MHTML），非旧版二进制 DOC':'保存当前编辑内容及内嵌图片'} aria-label="保存到文件" disabled={!document || !!busy || saving} onClick={()=>saveToFile().catch(err=>setError(err.message || '保存失败'))}>{saving?<Loader2 className="spin" size={15}/>:<Download size={15}/>}<span>{saving?'保存中':'保存到文件'}</span></button>
+          </div>
+          <button className="small-button heading-action" title="关闭当前文档，以便编辑另一份" aria-label="关闭当前文档" disabled={!document || busy==='publish' || busy==='convert'} onClick={closeDocument}><X size={15}/><span>关闭</span></button>
+          <button className="icon-button" title={focus?'退出专注模式':'专注模式：隐藏两侧栏，预览铺满可用宽度'} aria-label="切换专注模式" onClick={()=>setFocus(!focus)}><PanelLeftClose size={18}/></button>
+        </div></div>
         {error && <div className="alert error" role="alert"><XCircle size={17}/><span>{error}</span><button className="icon-button" title="关闭提示" aria-label="关闭提示" onClick={()=>setError('')}><X size={14}/></button></div>}
         {notice && <div className="alert" role="status">{notice}</div>}
         {sync==='error' && <div className="sync-error"><span>修改仍保留在编辑器中，发布已暂停。</span><button className="small-button" onClick={()=>flushDraft().catch(()=>{})}><RefreshCw size={13}/>重试同步</button></div>}
@@ -564,7 +605,7 @@ function App() {
         </div>
       </aside>
     </div>
-     {drag && <div className="drop-overlay"><CloudUpload size={44}/><h2>松开以上传文档或配套图片</h2><span>单文件最大 10 MB</span></div>}
+     {drag && <div className="drop-overlay"><CloudUpload size={44}/><h2>松开以上传文档或配套图片</h2></div>}
     {modal && <div className="modal-overlay"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-heading"><button className="modal-close icon-button" title="关闭" aria-label="关闭" disabled={busy==='publish'} onClick={()=>setModal(false)}><X size={19}/></button><span className="modal-emblem"><Send size={22}/></span><h2 id="confirm-heading">确认替换页面正文</h2><p className="modal-subtitle">将更新已有页面，不会创建副本。</p><div className="confirm-target"><span>目标页面</span><strong>{plan?.target.title}</strong><a href={plan?.url} target="_blank" rel="noreferrer">查看页面<ArrowUpRight size={13}/></a></div>
       <label htmlFor="confirm-title">输入页面标题以确认</label><input id="confirm-title" autoFocus value={confirmTitle} disabled={busy==='publish'} onChange={e=>setConfirmTitle(e.target.value)} autoComplete="off"/>
       <label className="checkbox-label"><input type="checkbox" checked={ack} disabled={busy==='publish'} onChange={e=>setAck(e.target.checked)}/><span>我已核对文档预览及兼容性提示，确认替换目标正文。</span></label>

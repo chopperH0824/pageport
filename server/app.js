@@ -6,7 +6,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, writeFile, readFile, readdir, lstat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { AppError, HTML_IMPORT_WARNING } from './convert.js';
-import { isolatedConversion } from './conversion.js';
+import { isolatedConversion, isolatedExport } from './conversion.js';
 import { storageToEditorHtml } from './storage-import.js';
 import { parseTarget, credentials, createConfluenceClient, validateSnapshot, summarizePage, assertUnchanged, contentSignature } from './confluence.js';
 
@@ -177,22 +177,18 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
   });
   app.use('/api',(req,res,next)=>req.session.authenticated ? next() : next(new AppError('请先输入网站访问口令。',401)));
   app.get('/api/health',(_,res)=>res.json({ok:true,engine:'Mark',compatibility:'Confluence 7.6',formats:['md','html','docx','doc','txt']}));
-  const upload = multer({ storage:multer.memoryStorage(), limits: { fileSize:10*1024*1024, files:25, fields:0, parts:25 } });
+  const upload = multer({ storage:multer.memoryStorage(), limits: { fields:0 } });
   app.post('/api/convert',rateLimit({windowMs:60*1000,limit:desktopToken?90:30,legacyHeaders:false}), (req,res,next) => {
     const length = Number(req.get('content-length'));
     if (!Number.isSafeInteger(length) || length <= 0) return next(new AppError('上传必须包含有效的文件大小。',411));
-    if (length > 21*1024*1024) return next(new AppError('上传总大小不能超过 20 MB。',413));
     next();
-  }, conversionSlot, upload.fields([{name:'document',maxCount:1},{name:'images',maxCount:24}]),async(req,res,next)=>{
+  }, conversionSlot, upload.fields([{name:'document',maxCount:1},{name:'images'}]),async(req,res,next)=>{
     try {
       if (!req.files?.document?.[0]) throw new AppError('请先选择一个文档。');
       req.session.plans.clear();
       const files = [req.files.document[0],...(req.files.images || [])];
-      if (files.reduce((n,f)=>n+f.size,0)>20*1024*1024) throw new AppError('文档和图片的总大小不能超过 20 MB。');
       const document = await isolatedConversion(files[0],req.files.images || [],{allowEmpty:req.query.allowEmpty==='1'});
       document.bytes = Buffer.byteLength(document.source + document.storage + document.preview) + document.assets.reduce((n,a)=>n+a.buffer.length,0);
-      const retainedBytes = [...sessions.values()].reduce((n,s)=>n+[...s.documents.values()].reduce((m,d)=>m+d.bytes,0),0);
-      if (retainedBytes+document.bytes > 128*1024*1024) throw new AppError('当前文档存储已满，请清除会话或稍后再试。',503);
       const id = random();
       document.name = files[0].originalname;
       req.session.documents.clear();
@@ -219,6 +215,14 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
     const doc = req.session.documents.get(req.params.id);
     if (!doc) return next(new AppError('文档已过期，请重新上传。',404));
     res.attachment('confluence-storage.xhtml').type('application/xml').send(doc.storage);
+  });
+  app.post('/api/documents/:id/export/:format',conversionSlot,async(req,res,next)=>{
+    try {
+      const doc = req.session.documents.get(req.params.id);
+      if (!doc) throw new AppError('文档已过期，请重新导入。',404);
+      const exported = await isolatedExport(doc,req.params.format);
+      res.attachment(`document.${req.params.format}`).type(exported.mime).send(exported.buffer);
+    } catch(err) { next(err); }
   });
   app.delete('/api/documents/:id',(req,res)=>{
     req.session.documents.delete(req.params.id); req.session.plans.clear(); res.json({ok:true});
@@ -349,7 +353,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
     res.json({ok:true});
   });
   app.use((err,req,res,_next)=>{
-    if (err instanceof multer.MulterError) return res.status(400).json({error:'上传超出限制：单文件最大 10 MB，最多 24 张图片。'});
+    if (err instanceof multer.MulterError) return res.status(400).json({error:'上传字段无效，请选择一份文档和对应图片。'});
     if (err.type === 'entity.too.large') return res.status(413).json({error:'请求体积过大。'});
     res.status(err.status || 500).json({error:err instanceof AppError ? err.message : '处理失败，请稍后再试。未确认结果时请先检查目标页面。'});
   });

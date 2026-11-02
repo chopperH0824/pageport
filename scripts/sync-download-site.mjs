@@ -24,10 +24,10 @@ const latestJsonPath = path.join(siteDir, "downloads", "latest.json");
 const indexPath = path.join(siteDir, "index.html");
 
 const HIGHLIGHTS = [
-  "Windows 安装程序完成页内置「安装完成后删除安装包」选项，由安装向导完成后自动清理安装包。",
-  "接入 SignPath Foundation 开源项目代码签名规范、隐私声明与 GitHub Actions 自动签名流水线。",
-  "更新检查支持 GitHub API + pageport.chopperh.me 官方镜像双通道，下载后仍严格校验 SHA-256。",
-  "支持「新建空白文档」、侧栏展开按钮就近显示，以及本机备份载入编辑区预览后再发布。"
+  "修复左侧目录跳转，支持从编辑、发布预览、源文件和检查项定位到正文标题。",
+  "本地保存可选 DOCX、Word 兼容 DOC 或 Markdown，已载入的本地图片随文件内嵌保存。",
+  "DOCX 导出逐张核对内嵌图片完整性；缺图或仅有远程地址时明确提示，不静默丢图。",
+  "移除固定导入体积、图片大小和数量上限，保留异常压缩包、加密与转换超时保护。"
 ];
 const githubToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
 

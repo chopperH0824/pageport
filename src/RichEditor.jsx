@@ -96,7 +96,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
   const insertImages=async(editor,files)=>{
     try {
       for(const file of files) {
-        if(!/^image\/(png|jpeg|gif|webp)$/.test(file.type) || file.size>6*1024*1024) throw new Error('图片仅支持 PNG、JPEG、GIF、WebP，单张最大 6 MB。');
+        if(!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) throw new Error('图片仅支持 PNG、JPEG、GIF、WebP。');
         const src=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('无法读取图片。'));reader.readAsDataURL(file);});
         if(!editor.isDestroyed && editor.isEditable) editor.chain().focus().setImage({src,alt:file.name}).run();
       }
@@ -114,7 +114,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
       TextStyle,Color,FontSize,Indent,Panel,Status,MissingImage,SearchReplace,
       TableOfContents,
     ],
-    content,
+    content:normalizeClipboardHtml(content).html,
     immediatelyRender:false,
     editorProps:{
       attributes:{class:'prose-editor','aria-label':'文档可视化编辑器',role:'textbox','aria-multiline':'true',spellcheck:'false'},
@@ -169,7 +169,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
     if(!editor)return;
     if(loadedVersion.current===contentVersion)return;
     loadedVersion.current=contentVersion;
-    editor.commands.setContent(content,{emitUpdate:false});
+    editor.commands.setContent(normalizeClipboardHtml(content).html,{emitUpdate:false});
     updateOutline(editor);
   },[editor,contentVersion]);
   useEffect(()=>{if(editor)onReady(editor);return()=>onReady(null);},[editor]);

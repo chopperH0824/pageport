@@ -2,6 +2,7 @@ import React from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { NodeViewWrapper, ReactNodeViewRenderer, useEditorState } from '@tiptap/react';
 import { ListTree, Trash2 } from 'lucide-react';
+import { navigateToHeading } from './heading-navigation.js';
 
 function ContentsView({editor,node,updateAttributes,deleteNode}) {
   const headings=useEditorState({editor,selector:({editor:e})=>{
@@ -18,7 +19,7 @@ function ContentsView({editor,node,updateAttributes,deleteNode}) {
       <span>至</span><select aria-label="目录结束层级" disabled={!editor.isEditable} value={node.attrs.maxLevel} onChange={e=>{if(!editor.isEditable)return;const maxLevel=Number(e.target.value);updateAttributes({maxLevel,minLevel:Math.min(maxLevel,node.attrs.minLevel)});}}>{[1,2,3,4,5,6].map(level=><option value={level} key={level}>{level}</option>)}</select>
       <button type="button" className="icon-button" title="删除目录" aria-label="删除目录" disabled={!editor.isEditable} onClick={()=>{if(editor.isEditable)deleteNode();}}><Trash2 size={14}/></button>
     </div></div>
-    <nav aria-label="正文目录">{visible.length?visible.map((heading,index)=><button type="button" key={index} style={{paddingLeft:12+(heading.level-node.attrs.minLevel)*16}} onClick={()=>editor.chain().focus().setTextSelection(heading.pos+1).scrollIntoView().run()}>{heading.text || '未命名标题'}</button>):<p className="contents-empty">暂无符合层级的标题</p>}</nav>
+    <nav aria-label="正文目录">{visible.length?visible.map((heading,index)=><button type="button" key={index} style={{paddingLeft:12+(heading.level-node.attrs.minLevel)*16}} onMouseDown={event=>event.preventDefault()} onClick={()=>navigateToHeading(editor,heading.pos)}>{heading.text || '未命名标题'}</button>):<p className="contents-empty">暂无符合层级的标题</p>}</nav>
   </NodeViewWrapper>;
 }
 

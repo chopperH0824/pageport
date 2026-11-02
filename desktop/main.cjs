@@ -6,6 +6,7 @@ const { mkdtempSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
 const { UpdateManager } = require('./updates.cjs');
+const { writeDocument } = require('./document-files.cjs');
 
 app.setName('PagePort');
 let backend, window, origin, updater;
@@ -146,7 +147,6 @@ function openExternal(url) {
 }
 
 const textExtensions = new Set(['.md', '.markdown', '.txt']);
-const blockedExtensions = new Set(['.docx', '.doc', '.html', '.htm', '.wps']);
 
 function rememberFile(filePath) {
   const token = randomBytes(16).toString('hex');
@@ -157,7 +157,6 @@ function rememberFile(filePath) {
 async function readOpenedFile(filePath) {
   try {
     const buffer = await readFile(filePath);
-    if (buffer.length > 10 * 1024 * 1024) return { error: '单文件不能超过 10 MB。' };
     let token = [...openedFiles.entries()].find(([, stored]) => stored === filePath)?.[0];
     if (!token) token = rememberFile(filePath);
     return { token, name: path.basename(filePath), buffer };
@@ -180,25 +179,28 @@ ipcMain.handle('pageport:read-document', async (_event, token) => {
   return readOpenedFile(openedFiles.get(token));
 });
 
-ipcMain.handle('pageport:save-document', async (_event, payload) => {
-  const text = typeof payload?.text === 'string' ? payload.text : '';
-  if (text.length > 8000000) return { error: '内容过大，无法保存。' };
+ipcMain.handle('pageport:save-document', async (event, payload) => {
+  if (event.sender !== window?.webContents || event.senderFrame !== window.webContents.mainFrame ||
+    new URL(event.senderFrame.url).origin !== origin) throw new Error('Untrusted save request.');
+  const format = payload?.format;
+  if (!['md','docx','doc'].includes(format) || !(payload?.buffer instanceof Uint8Array)) return { error:'保存数据无效。' };
+  const buffer = Buffer.from(payload.buffer);
   const existing = payload?.overwrite && typeof payload.token === 'string' ? openedFiles.get(payload.token) : '';
   const existingExt = existing ? path.extname(existing).toLowerCase() : '';
-  let filePath = existing && textExtensions.has(existingExt) ? existing : '';
+  let filePath = format === 'md' && existing && textExtensions.has(existingExt) ? existing : '';
   const overwritten = Boolean(filePath);
   if (!filePath) {
     const choice = await dialog.showSaveDialog(window, {
-      defaultPath: typeof payload?.name === 'string' ? payload.name : 'document.md',
-      filters: [{ name: 'Markdown', extensions: ['md'] }],
+      defaultPath: typeof payload?.name === 'string' ? path.basename(payload.name) : `document.${format}`,
+      filters: [{ name: {md:'Markdown',docx:'Word 文档',doc:'Word 兼容文档（MHTML）'}[format], extensions: [format] }],
     });
     if (choice.canceled || !choice.filePath) return { canceled: true };
     filePath = choice.filePath;
     const ext = path.extname(filePath).toLowerCase();
-    if (blockedExtensions.has(ext)) return { error: '不能把编辑结果写回 Word 或 HTML 原件。请保存为 .md 文件。' };
-    if (ext !== '.md') filePath += '.md';
+    if (ext && ext !== `.${format}`) return { error:`文件扩展名必须是 .${format}，请重新选择格式或文件名。` };
+    if (!ext) filePath += `.${format}`;
   }
-  try { await writeFile(filePath, text, 'utf8'); }
+  try { await writeDocument(filePath, buffer); }
   catch { return { error: '无法写入这个文件。' }; }
   return { token: rememberFile(filePath), name: path.basename(filePath), overwritten };
 });
@@ -637,12 +639,84 @@ async function start() {
       window.setSize(1440,960);
       await new Promise(resolve=>setTimeout(resolve,100));
     }
+    if(process.argv.includes('--smoke-editor')) {
+      const brandBytes=await readFile(path.join(appRoot,'dist','brand.png'));
+      const synthetic=`<h1>本地保存验证</h1><p><img width="160" src="data:image/png;base64,${brandBytes.toString('base64')}" alt="PagePort 测试图"></p>`+
+        Array.from({length:12},(_,index)=>`<h2>跳转章节 ${index+1}</h2>${'<p>用于验证目录滚动和本地保存的公开合成正文。</p>'.repeat(12)}`).join('');
+      await window.webContents.executeJavaScript(`(() => {
+        const input=document.querySelector('.sidebar input[type="file"]'), transfer=new DataTransfer();
+        transfer.items.add(new File([${JSON.stringify(synthetic)}],'本地保存验证.html',{type:'text/html'}));
+        input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+      })()`);
+      const importDeadline=Date.now()+15000;
+      while(Date.now()<importDeadline) {
+        if(await window.webContents.executeJavaScript(`document.querySelectorAll('.outline-nav button').length===13 && !!document.querySelector('.prose-editor img')`))break;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+      state.navigation=[];
+      for(const mode of ['edit','preview','source','checks']) {
+        await window.webContents.executeJavaScript(`(() => {
+          document.querySelector('.rich-document-scroll').scrollTop=0;
+          ${mode==='preview'?"document.querySelector('.editor-mode-tools button').click();":''}
+          ${mode==='source'?"document.querySelectorAll('.page-heading [role=\"tab\"]')[1].click();":''}
+          ${mode==='checks'?"document.querySelectorAll('.page-heading [role=\"tab\"]')[2].click();":''}
+        })()`);
+        await new Promise(resolve=>setTimeout(resolve,150));
+        await window.webContents.executeJavaScript(`document.querySelectorAll('.outline-nav button')[10].click()`);
+        await new Promise(resolve=>setTimeout(resolve,300));
+        state.navigation.push(await window.webContents.executeJavaScript(`(() => {
+          const scroll=document.querySelector('.rich-document-scroll'), heading=document.querySelectorAll('.prose-editor h2')[9];
+          const delta=heading.getBoundingClientRect().top-scroll.getBoundingClientRect().top;
+          return {mode:${JSON.stringify(mode)},top:scroll.scrollTop,delta,passed:scroll.scrollTop>500 && delta>=0 && delta<50 && !document.querySelector('iframe')};
+        })()`));
+      }
+      await writeFile(path.join(output,'desktop-outline-jump.png'),(await window.webContents.capturePage()).toPNG());
+      const originalSaveDialog=dialog.showSaveDialog;
+      state.saving=[];
+      try {
+        for(const format of ['docx','doc','md']) {
+          const target=path.join(output,`saved-document.${format}`);
+          dialog.showSaveDialog=async()=>({canceled:false,filePath:target});
+          await window.webContents.executeJavaScript(`(() => {
+            const select=document.querySelector('[aria-label="保存格式"]');
+            Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(format)});
+            select.dispatchEvent(new Event('change',{bubbles:true}));
+          })()`);
+          await new Promise(resolve=>setTimeout(resolve,100));
+          await window.webContents.executeJavaScript(`document.querySelector('[aria-label="保存到文件"]').click()`);
+          const saveDeadline=Date.now()+20000;
+          while(Date.now()<saveDeadline) {
+            if(await window.webContents.executeJavaScript(`(document.querySelector('.file-item strong')?.textContent || '')===${JSON.stringify(path.basename(target))} && !document.querySelector('[aria-label="保存到文件"]').disabled`))break;
+            await new Promise(resolve=>setTimeout(resolve,100));
+          }
+          const bytes=await readFile(target);
+          let imagePreserved=false;
+          if(format==='docx') {
+            const zip=await require('jszip').loadAsync(bytes);
+            const images=await Promise.all(zip.file(/^word\/media\/[^/]+$/).map(entry=>entry.async('nodebuffer')));
+            imagePreserved=images.some(image=>image.equals(brandBytes));
+          } else if(format==='doc') {
+            const {extractConfluenceExport}=await import('../server/confluence-export.js');
+            imagePreserved=extractConfluenceExport(bytes)?.html.includes(brandBytes.toString('base64'));
+          } else imagePreserved=bytes.toString().includes(brandBytes.toString('base64'));
+          state.saving.push({format,bytes:bytes.length,passed:!!imagePreserved});
+        }
+      } finally {dialog.showSaveDialog=originalSaveDialog;}
+      await writeFile(path.join(output,'desktop-saved.png'),(await window.webContents.capturePage()).toPNG());
+      if(!state.navigation.every(item=>item.passed) || !state.saving.every(item=>item.passed))throw new Error('Outline navigation or local image export failed.');
+    }
     await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
     await writeFile(path.join(output,'desktop.png'),(await window.webContents.capturePage()).toPNG());
     if(state.toc) {
       window.setSize(940,700);
       await new Promise(resolve=>setTimeout(resolve,200));
       state.toc.narrowOverflow=await window.webContents.executeJavaScript(`document.documentElement.scrollWidth>innerWidth`);
+      state.controlsFit=await window.webContents.executeJavaScript(`(() => {
+        const tabs=document.querySelector('.page-heading .tabs').getBoundingClientRect();
+        const actions=document.querySelector('.page-heading-actions').getBoundingClientRect();
+        return tabs.right<=actions.left || tabs.bottom<=actions.top || actions.bottom<=tabs.top;
+      })()`);
+      if(!state.controlsFit)throw new Error('Heading controls overlap in the narrow window.');
       await writeFile(path.join(output,'desktop-narrow.png'),(await window.webContents.capturePage()).toPNG());
       await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
     }

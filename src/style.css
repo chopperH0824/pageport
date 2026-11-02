@@ -29,3 +29,10 @@
 .backup-restore-note{margin:16px 0 0;padding:10px 12px;border-radius:5px;background:#f3f8f6;color:#6a8880;font-size:10px;line-height:1.8}
 @media(max-width:700px){.empty-blank{height:44px}}
 .update-source-note{margin-top:12px;font-size:11px;line-height:1.7;color:#6d8880;background:#f3f8f6;border-radius:5px;padding:9px 11px}
+.save-controls{display:flex;align-items:center;gap:4px;min-width:0}
+.save-controls select{width:108px;max-width:108px;height:28px;padding:3px 20px 3px 7px;border:1px solid var(--border,#dce3ed);border-radius:4px;background:#fff;color:var(--blue,#2463eb);font:inherit;font-size:11px}
+.save-controls select:focus-visible{outline:2px solid var(--blue,#2463eb);outline-offset:2px}
+.save-controls select:disabled{opacity:.5}
+.page-heading .tabs{flex:1 0 auto}
+.page-heading-actions{flex-shrink:0}
+.format-list{margin-bottom:18px}

@@ -5,20 +5,28 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 export async function isolatedConversion(file, images, options = {}) {
+  return isolatedJob({ file, images, options });
+}
+
+export async function isolatedExport(document, format) {
+  return isolatedJob({ document: { preview:document.preview,title:document.title,blockers:document.blockers }, format });
+}
+
+async function isolatedJob(data) {
   const scratchRoot=await mkdtemp(path.join(tmpdir(),'pageport-job-'));
   try { return await new Promise((resolve, reject) => {
     const worker = new Worker(new URL('./conversion-worker.js', import.meta.url), {
-      workerData: { file, images, scratchRoot, options },
-      resourceLimits: { maxOldGenerationSizeMb: 192 },
+      workerData: { ...data, scratchRoot },
     });
     const timer = setTimeout(() => {
       worker.terminate();
-      reject(new AppError('文档转换超时，请简化文档后再试。', 408));
-    }, 20000);
+      reject(new AppError('文档转换超时，原文件未修改。请稍后重试或分段导入。', 408));
+    }, 180000);
     worker.once('message', message => {
       clearTimeout(timer);
       worker.terminate();
       if (message.error) reject(new AppError(message.error, message.status));
+      else if (message.exported) resolve({...message.exported,buffer:Buffer.from(message.exported.buffer)});
       else {
         message.document.assets.forEach(asset => { asset.buffer = Buffer.from(asset.buffer); });
         resolve(message.document);

@@ -83,13 +83,12 @@ async function checkDocx(buffer) {
   await new Promise((resolve, reject) => {
     yauzl.fromBuffer(buffer, { lazyEntries: true }, (err, zip) => {
       if (err) return reject(new AppError('Word 文件损坏，或不是有效的 .docx 文件。'));
-      let size = 0, count = 0;
       zip.on('error', () => reject(new AppError('无法读取 Word 文件。')));
       zip.on('entry', entry => {
-        size += entry.uncompressedSize; count++;
-        if (size > 45 * 1024 * 1024 || count > 2000 || (entry.generalPurposeBitFlag & 1)) {
+        // Reject suspicious expansion, not ordinary large documents or photo collections.
+        if ((entry.uncompressedSize > 1024 * 1024 && entry.uncompressedSize / Math.max(1, entry.compressedSize) > 1000) || (entry.generalPurposeBitFlag & 1)) {
           zip.close();
-          return reject(new AppError('Word 文件解压体积过大、条目过多或已加密。'));
+          return reject(new AppError('Word 文件压缩比例异常或已加密。'));
         }
         zip.readEntry();
       });
@@ -143,7 +142,7 @@ async function compileMark(html, scratchRoot = tmpdir()) {
     const { stdout } = await exec(process.env.MARK_BIN || 'mark', [
       '--config', devNull, '--compile-only', '--files', file,
     ], {
-      cwd: dir, timeout: 12000, maxBuffer: 4 * 1024 * 1024,
+      cwd: dir, timeout: 120000, maxBuffer: Math.max(4 * 1024 * 1024, Buffer.byteLength(html) * 4),
       windowsHide: true,
       env: { PATH: process.env.PATH, HOME: dir, USERPROFILE: dir, LANG: 'en_US.UTF-8',
         ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}) },
@@ -168,8 +167,6 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
   async function addImage(buffer, label) {
     const type = await fileTypeFromBuffer(buffer);
     if (!type || !imageTypes.has(type.mime)) throw new AppError(`图片格式不支持：${label}，请使用 PNG、JPEG、GIF 或 WebP。`);
-    if (buffer.length > 6 * 1024 * 1024) throw new AppError('单张图片不能超过 6 MB。');
-    if (assets.length >= 24) throw new AppError('每篇文档最多包含 24 张图片。');
     const digest = hash(buffer);
     const existing = assets.find(a => a.digest === digest);
     if (existing) return existing;
@@ -182,7 +179,7 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
   if (confluenceExport) {
     html = confluenceExport.html;
     if (confluenceExport.title) title = confluenceExport.title;
-    warnings.push('这是从 Confluence 网页导出的 Word 文件，已按页面正文、表格、单元格颜色、勾选标记和原图地址还原。');
+    warnings.push(confluenceExport.pageport ? '已读取 PagePort 导出的 Word 兼容文档及内嵌图片。' : '这是从 Confluence 网页导出的 Word 文件，已按页面正文、表格、单元格颜色、勾选标记和原图地址还原。');
   } else if (office) {
     await checkDocx(office);
     let skippedImages = 0;
@@ -201,7 +198,7 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
         const bytes = await image.read();
         const type = await fileTypeFromBuffer(bytes);
         const label = type?.mime || image.contentType || '未知格式';
-        if (!type || !imageTypes.has(type.mime) || bytes.length > 6 * 1024 * 1024) {
+        if (!type || !imageTypes.has(type.mime)) {
           skippedImages += 1;
           return { src: 'pageport-unsupported', alt: label };
         }
@@ -269,7 +266,8 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
   for (const node of raw('img').toArray()) {
     const element = raw(node), src = element.attr('src') || '', alt = element.attr('alt') || '图片';
     if (src.includes('pageport-unsupported')) {
-      element.replaceWith(`<p>[未转换的图片：${escape(alt)}]</p>`);
+      blockers.push(`图片「${alt}」格式不支持，请替换为 PNG、JPEG、GIF 或 WebP。`);
+      element.replaceWith(`<span data-pageport-missing-image="${escape(alt)}">[未转换的图片：${escape(alt)}]</span>`);
       continue;
     }
     let asset;

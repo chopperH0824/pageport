@@ -11,6 +11,7 @@ the exact versions. Docker distributions include the npm package license files.
   retains the release license under `/usr/share/licenses/mark`.
 - React, Express, Vite, markdown-it, Cheerio, sanitize-html: MIT.
 - Mammoth: BSD-2-Clause.
+- @turbodocx/html-to-docx: MIT.
 - Lucide: ISC.
 - yauzl and jszip: see their distributed license files.
 

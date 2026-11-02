@@ -44,8 +44,10 @@ export function extractConfluenceExport(buffer) {
   if (!/MIME-Version:/i.test(probe) || !/multipart\//i.test(probe)) return null;
   const source = buffer.toString('latin1');
   const boundary = /boundary="([^"]+)"/i.exec(source)?.[1];
-  if (!boundary || !/Exported From Confluence|confluence(?:Table|Td|Th)/i.test(source)) return null;
+  const pageport = /^X-PagePort-Document:\s*1\s*$/im.test(probe);
+  if (!boundary || (!pageport && !/Exported From Confluence|confluence(?:Table|Td|Th)/i.test(source))) return null;
   let html = '';
+  const images = new Map();
   for (const part of source.split(`--${boundary}`)) {
     const split = part.indexOf('\r\n\r\n');
     if (split < 0) continue;
@@ -53,12 +55,21 @@ export function extractConfluenceExport(buffer) {
     let body = part.slice(split + 4);
     if (body.endsWith('\r\n')) body = body.slice(0, -2);
     const type = (/Content-Type:\s*([^;\r\n]+)/i.exec(headers)?.[1] || '').trim().toLowerCase();
-    if (type !== 'text/html') continue;
-    html = decodePart(headers, body).toString('utf8');
-    break;
+    if (type === 'text/html' && !html) html = decodePart(headers, body).toString('utf8');
+    if (pageport && /^image\/(png|jpeg|gif|webp)$/.test(type)) {
+      const id = /Content-ID:\s*<([^>]+)>/i.exec(headers)?.[1];
+      if (id) images.set(`cid:${id}`,`data:${type};base64,${decodePart(headers,body).toString('base64')}`);
+    }
   }
   if (!html) return null;
   const page = load(html);
+  if (pageport) {
+    page('img').each((_,node)=>{
+      const image=page(node), embedded=images.get(image.attr('src'));
+      if (embedded) image.attr('src',embedded);
+    });
+    return {html:page('body').html() || '',title:page('h1').first().text().trim(),pageport:true};
+  }
   const origin = page('a[href^="http"]').toArray().map(node => {
     try { return new URL(page(node).attr('href')).origin; } catch { return ''; }
   }).find(Boolean) || '';
