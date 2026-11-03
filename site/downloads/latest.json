@@ -1,11 +1,12 @@
 {
   "product": "PagePort",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "releaseDate": "2026-11-03",
   "engine": "Mark 16.22.0 Built-in",
-  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.7.3",
+  "githubReleaseUrl": "https://github.com/chopperH0824/pageport/releases/tag/v0.7.4",
   "githubRepoUrl": "https://github.com/chopperH0824/pageport",
   "highlights": [
+    "修复带图片文稿重复发布时同名附件导致的 400 错误，并明确提示发布失败步骤。",
     "保留 Confluence Word 表格的像素列宽、表宽、明确行高和单元格间距，编辑后继续保留。",
     "支持按空间与页面名称识别 Confluence 链接，不再要求手动寻找 pageId。",
     "保留图片每次引用的显示宽高，修复发布后图片按原始像素放大的问题。",
@@ -24,14 +25,14 @@
       "arch": "arm64",
       "label": "macOS",
       "detail": "Apple Silicon · macOS 13+",
-      "filename": "PagePort-0.7.3-arm64.dmg",
+      "filename": "PagePort-0.7.4-arm64.dmg",
       "latestAlias": "PagePort-latest-arm64.dmg",
-      "sizeBytes": 172929771,
-      "sizeFormatted": "164.9 MB",
-      "sha256": "89a6e1ea0ddbd235f91e92b568e265a6c880b9f2a7c4f8221491aaa77b189a45",
-      "directDownloadUrl": "/downloads/PagePort-0.7.3-arm64.dmg",
-      "versionedDownloadUrl": "/downloads/PagePort-0.7.3-arm64.dmg",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.3/PagePort-0.7.3-arm64.dmg"
+      "sizeBytes": 172849312,
+      "sizeFormatted": "164.8 MB",
+      "sha256": "f1cfd7a9f34db1eb9bc87ef839c197fb056c885550bb5a6d37fcda6e83675898",
+      "directDownloadUrl": "/downloads/PagePort-0.7.4-arm64.dmg",
+      "versionedDownloadUrl": "/downloads/PagePort-0.7.4-arm64.dmg",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.4/PagePort-0.7.4-arm64.dmg"
     },
     {
       "id": "windows",
@@ -39,14 +40,14 @@
       "arch": "x64",
       "label": "Windows",
       "detail": "Windows 10/11 x64",
-      "filename": "PagePort-0.7.3-x64-setup.exe",
+      "filename": "PagePort-0.7.4-x64-setup.exe",
       "latestAlias": "PagePort-latest-x64-setup.exe",
-      "sizeBytes": 139392835,
+      "sizeBytes": 139393295,
       "sizeFormatted": "132.9 MB",
-      "sha256": "c258d48c05c3648e361a89fda7054694260dc458ed45df4a3d55ed64d01e70f7",
-      "directDownloadUrl": "/downloads/PagePort-0.7.3-x64-setup.exe",
-      "versionedDownloadUrl": "/downloads/PagePort-0.7.3-x64-setup.exe",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.3/PagePort-0.7.3-x64-setup.exe"
+      "sha256": "8ec8f28c5ab6de8a83d83020ea893ad3fe65950b45f4a62d366690f2e7185b2f",
+      "directDownloadUrl": "/downloads/PagePort-0.7.4-x64-setup.exe",
+      "versionedDownloadUrl": "/downloads/PagePort-0.7.4-x64-setup.exe",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.4/PagePort-0.7.4-x64-setup.exe"
     }
   ],
   "gateways": [
@@ -56,14 +57,14 @@
       "arch": "arm64",
       "label": "macOS",
       "detail": "Apple Silicon · macOS 13+",
-      "filename": "PagePort-0.7.3-arm64-gateway.zip",
+      "filename": "PagePort-0.7.4-arm64-gateway.zip",
       "latestAlias": "PagePort-latest-arm64-gateway.zip",
-      "sizeBytes": 171739293,
-      "sizeFormatted": "163.8 MB",
-      "sha256": "bfa2cf25d1590fa917d49567bab97deecd8e02ebe3a188aacfa9ed623093da52",
-      "directDownloadUrl": "/downloads/PagePort-0.7.3-arm64-gateway.zip",
-      "versionedDownloadUrl": "/downloads/PagePort-0.7.3-arm64-gateway.zip",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.3/PagePort-0.7.3-arm64-gateway.zip"
+      "sizeBytes": 171686149,
+      "sizeFormatted": "163.7 MB",
+      "sha256": "07012b7e482be46679656cf9bdf870f3e20223c7e5f5272470e1a8c03b65463c",
+      "directDownloadUrl": "/downloads/PagePort-0.7.4-arm64-gateway.zip",
+      "versionedDownloadUrl": "/downloads/PagePort-0.7.4-arm64-gateway.zip",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.4/PagePort-0.7.4-arm64-gateway.zip"
     },
     {
       "id": "windows",
@@ -71,14 +72,14 @@
       "arch": "x64",
       "label": "Windows",
       "detail": "Windows 10/11 x64",
-      "filename": "PagePort-0.7.3-x64-gateway.zip",
+      "filename": "PagePort-0.7.4-x64-gateway.zip",
       "latestAlias": "PagePort-latest-x64-gateway.zip",
-      "sizeBytes": 197798043,
+      "sizeBytes": 197798722,
       "sizeFormatted": "188.6 MB",
-      "sha256": "9ad894917d5e78f0ee3a881259558d33004c014a36756d3e58da696f8807f4f5",
-      "directDownloadUrl": "/downloads/PagePort-0.7.3-x64-gateway.zip",
-      "versionedDownloadUrl": "/downloads/PagePort-0.7.3-x64-gateway.zip",
-      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.3/PagePort-0.7.3-x64-gateway.zip"
+      "sha256": "760a962f0c46a1c33aed5f9c38b8e1de246c0fb7fcc415d115390da29033dc58",
+      "directDownloadUrl": "/downloads/PagePort-0.7.4-x64-gateway.zip",
+      "versionedDownloadUrl": "/downloads/PagePort-0.7.4-x64-gateway.zip",
+      "githubDownloadUrl": "https://github.com/chopperH0824/pageport/releases/download/v0.7.4/PagePort-0.7.4-x64-gateway.zip"
     }
   ]
 }
