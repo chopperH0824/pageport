@@ -137,6 +137,7 @@ test('Confluence MIME images upload as attachments before protected publication 
   let page = { id: '12', type: 'page', status: 'current', title: 'Public test', version: { number: 1 },
     space: { key: 'TEST' }, body: { storage: { value: '<p>Original</p>' } } };
   const fetcher = async (url, options) => {
+    if (url.includes('/child/attachment?')) return Response.json({ results: [] });
     if (options.method === 'POST') {
       assert.match(url, /\/child\/attachment$/);
       const file = options.body.get('file');

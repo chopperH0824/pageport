@@ -47,6 +47,7 @@ test('authenticated gateway publishes embedded images with backup, version prote
     space: { key: 'TEST' }, body: { storage: { value: '<p>Original</p>' } } };
   const fetcher = async (url, options) => {
     assert.equal(new URL(url).hostname, 'wiki.example.com');
+    if (url.includes('/child/attachment?')) return Response.json({ results: [] });
     if (options.method === 'POST') {
       assert.ok(Buffer.from(await options.body.get('file').arrayBuffer()).equals(png));
       uploads++;

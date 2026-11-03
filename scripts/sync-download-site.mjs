@@ -24,6 +24,7 @@ const latestJsonPath = path.join(siteDir, "downloads", "latest.json");
 const indexPath = path.join(siteDir, "index.html");
 
 const HIGHLIGHTS = [
+  "修复带图片文稿重复发布时同名附件导致的 400 错误，并明确提示发布失败步骤。",
   "保留 Confluence Word 表格的像素列宽、表宽、明确行高和单元格间距，编辑后继续保留。",
   "支持按空间与页面名称识别 Confluence 链接，不再要求手动寻找 pageId。",
   "保留图片每次引用的显示宽高，修复发布后图片按原始像素放大的问题。",
