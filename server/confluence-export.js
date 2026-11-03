@@ -1,4 +1,5 @@
 import { load } from 'cheerio';
+import { imageDimensions } from './image-dimensions.js';
 import { fileTypeFromBuffer } from 'file-type';
 
 const emoticons = {
@@ -93,6 +94,11 @@ export async function extractConfluenceExport(buffer) {
   const page = load(html);
   page('img').each((_, node) => {
     const item = page(node);
+    const dimensions = imageDimensions(item);
+    for (const key of ['width','height']) if (dimensions[key]) item.attr(key,dimensions[key]);
+  });
+  page('img').each((_, node) => {
+    const item = page(node);
     const embedded = [item.attr('src'), item.attr('data-image-src')]
       .flatMap(referenceKeys).map(key => images.get(key)).find(Boolean);
     if (embedded) item.attr('src', embedded).removeAttr('data-image-src');
@@ -113,8 +119,9 @@ export async function extractConfluenceExport(buffer) {
     const item = page(node);
     const src = String(item.attr('data-image-src') || item.attr('src') || '').replace(/&amp;/g, '&');
     if (!/^https:\/\//i.test(src)) return;
-    const height = String(item.attr('height') || '').replace(/\D/g, '').slice(0, 4);
-    item.replaceWith(`<span data-confluence-image="${src}" data-height="${height}">${item.attr('alt') || '图片'}</span>`);
+    const replacement = page('<span></span>').attr('data-confluence-image',src).text(item.attr('alt') || '图片');
+    for (const [key,value] of Object.entries(imageDimensions(item))) if (value) replacement.attr(`data-${key}`,value);
+    item.replaceWith(replacement);
   });
   page('[class]').each((_, node) => {
     const item = page(node);

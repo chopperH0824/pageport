@@ -116,6 +116,7 @@ export const RemoteImage=Node.create({
   addAttributes:()=>({
     address:{default:'',parseHTML:element=>element.getAttribute('data-confluence-image'),renderHTML:attrs=>({'data-confluence-image':attrs.address})},
     height:{default:'',parseHTML:element=>element.getAttribute('data-height') || '',renderHTML:attrs=>({'data-height':attrs.height})},
+    width:{default:'',parseHTML:element=>element.getAttribute('data-width') || '',renderHTML:attrs=>({'data-width':attrs.width})},
   }),
   parseHTML:()=>[{tag:'span[data-confluence-image]',getAttrs:element=>{
     try {return new URL(element.getAttribute('data-confluence-image')).protocol==='https:'?null:false;} catch {return false;}

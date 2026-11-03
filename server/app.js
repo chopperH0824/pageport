@@ -239,10 +239,11 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
       if (localAccess) {
         try { hosts = [new URL(req.body.url).hostname]; } catch { throw new AppError('请输入完整的 HTTPS Confluence 页面链接。'); }
       }
-      const auth = credentials(req.body), target = parseTarget(req.body.url,hosts);
+      const auth = credentials(req.body), parsedTarget = parseTarget(req.body.url,hosts);
       const doc = req.session.documents.get(req.body.documentId);
       if (!doc) throw new AppError('文档已过期，请重新上传。',404);
       if (doc.blockers.length) throw new AppError('请先补齐图片或处理文档中的阻断项。');
+      const target = await createConfluenceClient(auth,parsedTarget,fetcher).resolve();
       const page = await createConfluenceClient(auth,target,fetcher).read();
       validateSnapshot(page,target);
       const summary = summarizePage(page);

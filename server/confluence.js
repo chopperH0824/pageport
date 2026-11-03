@@ -8,7 +8,19 @@ export function parseTarget(input, allowedHosts = []) {
     throw new AppError(`仅允许 HTTPS 页面：${allowedHosts.join('、')}。`);
   }
   let id = url.pathname === '/pages/viewpage.action' ? url.searchParams.get('pageId') : url.pathname.match(/^\/spaces\/[^/]+\/pages\/(\d+)(?:\/.*)?$/)?.[1];
-  if (!/^\d{1,20}$/.test(id || '')) throw new AppError('无法识别页面 ID，请使用包含 pageId 的页面链接。');
+  if (!id) {
+    const named = url.pathname.match(/^\/display\/([^/]+)\/(.+)$/);
+    if (named) {
+      let spaceKey, title;
+      try {
+        spaceKey = decodeURIComponent(named[1]);
+        title = decodeURIComponent(named[2].replaceAll('+', ' '));
+      } catch { throw new AppError('页面名称链接的编码无效，请重新复制完整链接。'); }
+      if (!spaceKey.trim() || !title.trim() || /[\0\r\n]/.test(spaceKey + title)) throw new AppError('页面名称链接不完整，请重新复制完整链接。');
+      return { origin:url.origin, url:url.href, spaceKey, title };
+    }
+  }
+  if (!/^\d{1,20}$/.test(id || '')) throw new AppError('无法识别目标页面，请使用包含 pageId 或 /display/空间/页面名称 的链接。');
   return { id, origin: url.origin, url: `${url.origin}/pages/viewpage.action?pageId=${id}` };
 }
 
@@ -53,6 +65,20 @@ export function createConfluenceClient(auth, target, fetcher = fetch) {
     catch { throw new AppError('Confluence 未返回有效数据，可能跳转到了登录页面。', 502); }
   }
   return {
+    resolve: async () => {
+      if (target.id) return target;
+      const query = new URLSearchParams({spaceKey:target.spaceKey,title:target.title,type:'page',status:'current',limit:'2'});
+      const result = await request(`/rest/api/content?${query}`);
+      if (!Array.isArray(result.results)) throw new AppError('Confluence 未返回有效的页面查询结果。',502);
+      if (!result.results.length) throw new AppError('未找到该名称的页面，或当前账号不可见。请检查空间、页面名称和权限。',404);
+      if (result.results.length !== 1 || result._links?.next) throw new AppError('页面名称未能唯一确定目标，请改用包含 pageId 的链接。',409);
+      const page = result.results[0];
+      if (!/^\d{1,20}$/.test(String(page.id || '')) || page.title !== target.title || page.type !== 'page' || page.status !== 'current') {
+        throw new AppError('查询结果与页面名称不一致，已停止操作，请重新复制链接。',409);
+      }
+      const id = String(page.id);
+      return {id,origin:target.origin,url:`${target.origin}/pages/viewpage.action?pageId=${id}`,spaceKey:target.spaceKey,title:target.title};
+    },
     read: () => request(`/rest/api/content/${target.id}?expand=body.storage,version,space`),
     attach: asset => {
       const form = new FormData();
@@ -76,6 +102,9 @@ export function createConfluenceClient(auth, target, fetcher = fetch) {
 export function validateSnapshot(page, target) {
   if (String(page.id) !== target.id || page.type !== 'page' || !page.title || !Number.isInteger(page.version?.number) || typeof page.body?.storage?.value !== 'string') {
     throw new AppError('页面数据不完整或不是普通页面，已停止操作。', 502);
+  }
+  if (target.spaceKey && (page.space?.key !== target.spaceKey || page.title !== target.title)) {
+    throw new AppError('页面空间或名称已发生变化，请重新检查目标链接。',409);
   }
   if (page.status !== 'current') throw new AppError('目标不是已发布的当前页面，暂不支持更新。');
   if (Buffer.byteLength(page.body.storage.value)>2*1024*1024) throw new AppError('目标正文超过 2 MB，暂不支持安全更新。',413);

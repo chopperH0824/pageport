@@ -50,6 +50,15 @@ const SHORTCUTS=[
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 
 const LocalImage=Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      ...Object.fromEntries(['width','height'].map(key=>[key,{
+        default:null,
+        parseHTML:element=>/^[1-9]\d{0,5}$/.test(element.getAttribute(key) || '')?element.getAttribute(key):null,
+      }])),
+    };
+  },
   parseHTML:()=>[{tag:'img[src]',getAttrs:node=>/^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(node.getAttribute('src') || '') ? null : false}],
 });
 

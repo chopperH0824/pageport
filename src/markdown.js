@@ -31,7 +31,11 @@ export function createSerializer() {
   });
   service.addRule('remoteImage', {
     filter:node=>node.nodeName==='SPAN' && node.hasAttribute('data-confluence-image'),
-    replacement:(_content,node)=>`<span data-confluence-image="${escapeHtml(node.getAttribute('data-confluence-image'))}" data-height="${escapeHtml(node.getAttribute('data-height') || '')}">在线图片</span>`,
+    replacement:(_content,node)=>`<span data-confluence-image="${escapeHtml(node.getAttribute('data-confluence-image'))}" data-width="${escapeHtml(node.getAttribute('data-width') || '')}" data-height="${escapeHtml(node.getAttribute('data-height') || '')}">在线图片</span>`,
+  });
+  service.addRule('sizedImage', {
+    filter:node=>node.nodeName==='IMG' && !!(node.getAttribute('width') || node.getAttribute('height')),
+    replacement:(_content,node)=>`<img${['src','alt','width','height'].filter(key=>node.getAttribute(key)).map(key=>` ${key}="${escapeHtml(node.getAttribute(key))}"`).join('')} />`,
   });
   // Wrap the converted content rather than copying outerHTML, so Markdown characters stay escaped.
   service.addRule('extendedInline', {

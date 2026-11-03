@@ -15,6 +15,7 @@ import { adaptOfficePackage, looksLikeDocx } from './office-adapt.js';
 import { extractConfluenceExport } from './confluence-export.js';
 import { normalizeOnlineDocument } from './online-document.js';
 import { restoreOfficeDetails } from './office-details.js';
+import { imageDimensions, dimensionAttributes } from './image-dimensions.js';
 
 const exec = promisify(execFile);
 const md = new MarkdownIt({ html: true, linkify: true, breaks: false }).use(taskLists);
@@ -57,7 +58,7 @@ export function cleanHtml(html) {
       ul:['data-type'],li:['data-type','data-checked'],code:['class'],
       td: ['colspan','rowspan','style'], th: ['colspan','rowspan','scope','style'],
       col: ['style','span'], colgroup: ['span'], table: ['style'],
-      ol: ['start'], span: ['data-image-ref','data-pageport-status','data-pageport-missing-image','style','data-confluence-emoticon','data-confluence-image','data-height'], mark: ['data-color','style'],
+      ol: ['start'], span: ['data-image-ref','data-pageport-status','data-pageport-missing-image','style','data-confluence-emoticon','data-confluence-image','data-height','data-width'], mark: ['data-color','style'],
       div:['data-pageport-toc','data-min-level','data-max-level','data-pageport-panel'],
     },
     allowedClasses:{code:[/^language-[a-zA-Z0-9_-]+$/]},
@@ -288,7 +289,7 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
       }
       asset = await addImage(image, filename);
     }
-    element.replaceWith(`<span data-image-ref="${asset.id}">${escape(alt)}</span>`);
+    element.replaceWith(`<span data-image-ref="${asset.id}"${dimensionAttributes(imageDimensions(element),'data-')}>${escape(alt)}</span>`);
   }
   raw('a').each((_, node) => {
     const element = raw(node), href = element.attr('href') || '';
@@ -371,8 +372,7 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
     let address='';
     try { address=new URL(item.attr('data-confluence-image') || '').href; } catch { address=''; }
     if (!address.startsWith('https://')) return;
-    const height=/^\d{1,4}$/.test(item.attr('data-height') || '')?` ac:height="${item.attr('data-height')}"`:'';
-    item.replaceWith(`<ac:image${height}><ri:url ri:value="${escape(address)}" /></ac:image>`);
+    item.replaceWith(`<ac:image${dimensionAttributes(imageDimensions(item),'ac:')}><ri:url ri:value="${escape(address)}" /></ac:image>`);
   });
   previewTree('span[data-confluence-image]').each((_,node)=>{
     const item=previewTree(node);
@@ -392,11 +392,13 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
   });
   for (const asset of assets) {
     storageTree(`span[data-image-ref="${asset.id}"]`).each((_, node) => {
-      storageTree(node).replaceWith(`<ac:image><ri:attachment ri:filename="${asset.name}" /></ac:image>`);
+      const item = storageTree(node);
+      item.replaceWith(`<ac:image${dimensionAttributes(imageDimensions(item),'ac:')}><ri:attachment ri:filename="${asset.name}" /></ac:image>`);
     });
     previewTree(`span[data-image-ref="${asset.id}"]`).each((_, node) => {
       const alt = previewTree(node).text();
-      previewTree(node).replaceWith(`<img alt="${escape(alt)}" src="data:${asset.mime};base64,${asset.buffer.toString('base64')}" />`);
+      const dimensions = dimensionAttributes(imageDimensions(previewTree(node)));
+      previewTree(node).replaceWith(`<img alt="${escape(alt)}"${dimensions} src="data:${asset.mime};base64,${asset.buffer.toString('base64')}" />`);
     });
   }
   const storage = storageTree.xml(), preview = previewTree.xml();

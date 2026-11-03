@@ -11,6 +11,8 @@ import { exportDocument } from '../server/export.js';
 import { toMarkdown } from '../src/markdown.js';
 import { createApp } from '../server/app.js';
 import { normalizeClipboardHtml } from '../server/online-document.js';
+import { restoreOfficeDetails } from '../server/office-details.js';
+import JSZip from 'jszip';
 
 const png = await readFile(new URL('../public/brand.png', import.meta.url));
 const boundary = 'pageport-public-confluence-test';
@@ -90,6 +92,30 @@ test('mixed embedded and online Confluence images survive editor synchronization
   }
 });
 
+test('each image reference preserves display dimensions across import, editing and storage', async()=>{
+  const buffer=mimeDocument('<h1>Sizes</h1><p><img src="embedded" width="240" height="120"></p><p><img src="embedded" style="width:3in;height:1.5in"></p><img src="https://example.invalid/remote.png" width="180" height="90">',[{location:'embedded'}]);
+  let doc=await convertDocument({originalname:'sizes.doc',buffer});
+  for(let round=0;round<3;round++) {
+    assert.equal(doc.assets.length,1);
+    assert.equal(doc.assets[0].digest,hash(png));
+    const storage=load(doc.storage,{xmlMode:true});
+    assert.deepEqual(storage('ac\\:image').toArray().map(node=>[storage(node).attr('ac:width'),storage(node).attr('ac:height')]),[['240','120'],['288','144'],['180','90']]);
+    const preview=load(doc.preview);
+    assert.deepEqual(preview('img').toArray().map(node=>[preview(node).attr('width'),preview(node).attr('height')]),[['240','120'],['288','144']]);
+    doc=await convertDocument({originalname:'edited.md',buffer:Buffer.from(toMarkdown(normalizeClipboardHtml(doc.preview).html))});
+  }
+});
+
+test('DOCX display extents are restored without resizing image bytes or guessing incomplete sequences',async()=>{
+  const zip=new JSZip();
+  zip.file('word/document.xml','<w:document xmlns:w="w" xmlns:wp="wp"><w:drawing><wp:extent cx="2286000" cy="1143000"/></w:drawing></w:document>');
+  const bytes=await zip.generateAsync({type:'nodebuffer'});
+  const restored=load(await restoreOfficeDetails(bytes,'<p><img src="data:image/png;base64,test"></p>'));
+  assert.equal(restored('img').attr('width'),'240');
+  assert.equal(restored('img').attr('height'),'120');
+  assert.doesNotMatch(await restoreOfficeDetails(bytes,'<img src="one"><img src="two">'),/width=/);
+});
+
 test('ambiguous MIME filenames and non-image attachments never become guessed images', async () => {
   const buffer = mimeDocument('<h1>Images</h1><img src="same"><img src="invalid"><img src="https://remote.invalid/same">', [
     { location: 'file:///first/same' },
@@ -129,7 +155,7 @@ test('Confluence MIME images upload as attachments before protected publication 
   t.after(async () => { app.locals.dispose(); await rm(dir, { recursive: true, force: true }); });
   const agent = request.agent(app);
   const bootstrap = (await agent.get('/api/bootstrap')).body;
-  const input = mimeDocument('<h1>Public test</h1><img src="image-id"><img src="image-id"><img src="https://wiki.example.com/remote.png">', [{ location: 'file:///image-id' }]);
+  const input = mimeDocument('<h1>Public test</h1><img src="image-id" width="240" height="120"><img src="image-id" width="120" height="60"><img src="https://wiki.example.com/remote.png" width="180">', [{ location: 'file:///image-id' }]);
   const converted = await agent.post('/api/convert').set('X-CSRF-Token', bootstrap.csrf).attach('document', input, 'public.doc').expect(200);
   assert.equal(converted.body.blockers.length, 0);
   assert.equal(converted.body.stats.images, 1);
@@ -142,5 +168,6 @@ test('Confluence MIME images upload as attachments before protected publication 
   const storage = load(page.body.storage.value, { xmlMode: true });
   assert.equal(storage('ri\\:attachment').length, 2);
   assert.equal(storage('ri\\:url').attr('ri:value'),'https://wiki.example.com/remote.png');
+  assert.deepEqual(storage('ac\\:image').toArray().map(node=>storage(node).attr('ac:width')),['240','120','180']);
   storage('ri\\:attachment').each((_, node) => assert.equal(storage(node).attr('ri:filename'), uploads[0].name));
 });

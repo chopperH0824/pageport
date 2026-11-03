@@ -24,6 +24,8 @@ const latestJsonPath = path.join(siteDir, "downloads", "latest.json");
 const indexPath = path.join(siteDir, "index.html");
 
 const HIGHLIGHTS = [
+  "支持按空间与页面名称识别 Confluence 链接，不再要求手动寻找 pageId。",
+  "保留图片每次引用的显示宽高，修复发布后图片按原始像素放大的问题。",
   "修复混合图片 Word 导入：在线图片引用在编辑与发布同步后保留，不再误报缺图阻断。",
   "内嵌图片作为附件发布；在线图片保留原地址并提示认证边界，不自动下载。",
   "修复左侧目录跳转，支持从编辑、发布预览、源文件和检查项定位到正文标题。",

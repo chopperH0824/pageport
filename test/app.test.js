@@ -297,6 +297,7 @@ async function harness(t, options={}) {
   const fetcher=async(url,init)=>{
     calls.push({url,method:init.method || 'GET'});
     if(options.deny) return new Response('{}',{status:401});
+    if(new URL(url).pathname==='/rest/api/content') return Response.json({results:[page]});
     if(init.method==='PUT') {
       assert.ok((await readdir(path.join(dir,'backups'))).length,'backup exists BEFORE PUT');
       const body=JSON.parse(init.body);
@@ -344,6 +345,18 @@ test('mocked complete publish, protected backup, readback and no replay',async t
   assert.match(backup,/Original body/);
   assert.doesNotMatch(backup,/transient-password-only|Authorization/);
   await h.post('/publish',{...auth,token,confirmTitle:'Test page',acknowledge:true}).expect(409);
+});
+
+test('name links resolve once and bind the protected publish plan to its numeric ID',async t=>{
+  const h=await harness(t);
+  const documentId=await upload(h);
+  const check=await h.post('/check',{...auth,url:'https://wiki.example.com/display/TEST/Test+page',documentId}).expect(200);
+  assert.equal(check.body.url,url);
+  assert.equal(check.body.target.id,'12');
+  const result=await h.post('/publish',{...auth,token:check.body.token,confirmTitle:'Test page',acknowledge:true}).expect(200);
+  assert.equal(result.body.verification,'matched');
+  assert.equal(h.calls.filter(call=>new URL(call.url).pathname==='/rest/api/content').length,1);
+  assert.ok(h.calls.filter(call=>call.method==='PUT').every(call=>new URL(call.url).pathname==='/rest/api/content/12'));
 });
 
 test('backup list, download, retention policy and local open API',async t=>{
