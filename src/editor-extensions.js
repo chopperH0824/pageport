@@ -1,5 +1,6 @@
 import { Extension, Node, mergeAttributes } from '@tiptap/core';
-import { Table, TableCell, TableHeader, TableView } from '@tiptap/extension-table';
+import { Table, TableCell, TableHeader, TableRow, TableView } from '@tiptap/extension-table';
+import { tableLayoutStyle } from '../server/table-layout.js';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { liftTarget } from '@tiptap/pm/transform';
@@ -225,19 +226,33 @@ class WidthTableView extends TableView {
   }
   keepWidth(node) {
     const width = /width\s*:\s*([^;]+)/i.exec(node.attrs.style || '')?.[1]?.trim();
-    if (width) this.table.style.width = width;
+    if (width) {
+      this.table.style.width = width;
+      this.table.style.minWidth = '';
+    }
+    const layout = /table-layout:\s*(fixed|auto)/.exec(node.attrs.style || '');
+    if (layout) this.table.style.tableLayout = layout[1];
+    const columns = keptColumns(node);
+    if (columns) Array.from(this.colgroup.children).forEach((col,index)=>{
+      col.style.cssText = columns[index] || '';
+    });
   }
 }
-const percentWidth = element => {
-  const width = (element.style.width || '').trim();
-  return /^\d+(?:\.\d+)?%$/.test(width) ? `width: ${width}` : null;
-};
+const layoutStyle = element => tableLayoutStyle(element.getAttribute('style'),element.getAttribute('width'),element.getAttribute('height')) || null;
+function keptColumns(node) {
+  const columns = node.attrs.columnStyles;
+  let count = 0;
+  node.firstChild?.forEach(cell=>{count+=cell.attrs.colspan || 1;});
+  return Array.isArray(columns) && columns.length === count ? columns : null;
+}
 const cellStyle = element => {
   const parts = [];
   const align = (element.style.textAlign || '').trim().toLowerCase();
   if (['left','center','right','justify'].includes(align)) parts.push(`text-align: ${align}`);
   const background = (element.style.backgroundColor || '').trim();
   if (background && background !== 'transparent' && background !== 'rgba(0, 0, 0, 0)') parts.push(`background-color: ${background}`);
+  const layout = layoutStyle(element);
+  if (layout) parts.push(layout);
   return parts.join('; ') || null;
 };
 const styledCell = ExtensionNode => ExtensionNode.extend({
@@ -251,10 +266,33 @@ const styledCell = ExtensionNode => ExtensionNode.extend({
 });
 export const ConfluenceTable = Table.extend({
   addAttributes() {
-    return {...this.parent?.(), style:{default:null,parseHTML:percentWidth,renderHTML:attributes=>attributes.style?{style:attributes.style}:{}}};
+    return {
+      ...this.parent?.(),
+      style:{default:null,parseHTML:layoutStyle,renderHTML:attributes=>attributes.style?{style:attributes.style}:{}},
+      columnStyles:{default:null,renderHTML:()=>({}),parseHTML:element=>{
+        const cols = Array.from(element.querySelectorAll(':scope > colgroup > col, :scope > col'));
+        const styles = cols.flatMap(col=>Array.from({length:Math.min(1000,Math.max(1,Number.parseInt(col.getAttribute('span'),10)||1))},()=>layoutStyle(col) || ''));
+        return styles.some(Boolean)?styles:null;
+      }},
+    };
+  },
+  renderHTML({node,HTMLAttributes}) {
+    const result = this.parent({node,HTMLAttributes});
+    const columns = keptColumns(node);
+    if (columns) {
+      const table = result[0] === 'table' ? result : result.find(item=>Array.isArray(item) && item[0] === 'table');
+      const index = table?.findIndex(item=>Array.isArray(item) && item[0] === 'colgroup');
+      if (index >= 0) table[index] = ['colgroup',{},...columns.map(style=>['col',style?{style}:{}])];
+    }
+    return result;
   },
   addOptions() {
     return {...this.parent?.(), resizable:false, View:WidthTableView};
+  },
+});
+export const ConfluenceTableRow = TableRow.extend({
+  addAttributes() {
+    return {...this.parent?.(),style:{default:null,parseHTML:layoutStyle,renderHTML:attrs=>attrs.style?{style:attrs.style}:{}}};
   },
 });
 export const ConfluenceTableCell = styledCell(TableCell);

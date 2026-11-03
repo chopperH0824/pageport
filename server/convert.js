@@ -16,6 +16,7 @@ import { extractConfluenceExport } from './confluence-export.js';
 import { normalizeOnlineDocument } from './online-document.js';
 import { restoreOfficeDetails } from './office-details.js';
 import { imageDimensions, dimensionAttributes } from './image-dimensions.js';
+import { normalizeTableLayout } from './table-layout.js';
 
 const exec = promisify(execFile);
 const md = new MarkdownIt({ html: true, linkify: true, breaks: false }).use(taskLists);
@@ -42,7 +43,13 @@ export const hash = value => createHash('sha256').update(value).digest('hex');
 const escape = text => String(text).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const colorValue = [/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i, /^rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)$/i];
 const blockStyle = {'text-align':[/^(left|center|right|justify)$/], 'margin-left':[/^\d{1,3}(?:\.\d+)?px$/]};
-const cellStyle = {'text-align':[/^(left|center|right|justify)$/], 'background-color':colorValue, color:colorValue, width:[/^\d+(?:\.\d+)?%$/]};
+const dimensionStyle = [/^\d+(?:\.\d+)?(?:px|%)$/];
+const layoutStyle = {
+  width:dimensionStyle,height:[/^\d+(?:\.\d+)?px$/],'min-height':[/^\d+(?:\.\d+)?px$/],
+  'table-layout':[/^(fixed|auto)$/],'vertical-align':[/^(top|middle|bottom|baseline)$/],'white-space':[/^(normal|nowrap|pre-wrap)$/],
+  ...Object.fromEntries(['padding','padding-top','padding-right','padding-bottom','padding-left'].map(key=>[key,[/^\d+px(?: \d+px){0,3}$/]])),
+};
+const cellStyle = {...layoutStyle,'text-align':[/^(left|center|right|justify)$/], 'background-color':colorValue, color:colorValue};
 const panelTypes = new Set(['info','tip','note','warning']);
 const statusColours = {grey:'Grey',blue:'Blue',green:'Green',yellow:'Yellow',red:'Red'};
 export const HTML_IMPORT_WARNING = 'HTML 保留支持的表格与内容结构；脚本、样式表、表单、嵌入页面及不受支持的标签会被清理。';
@@ -57,7 +64,7 @@ export function cleanHtml(html) {
       p:['style'], h1:['style'],h2:['style'],h3:['style'],h4:['style'],h5:['style'],h6:['style'],
       ul:['data-type'],li:['data-type','data-checked'],code:['class'],
       td: ['colspan','rowspan','style'], th: ['colspan','rowspan','scope','style'],
-      col: ['style','span'], colgroup: ['span'], table: ['style'],
+      col: ['style','span'], colgroup: ['span'], table: ['style'], tr:['style'],
       ol: ['start'], span: ['data-image-ref','data-pageport-status','data-pageport-missing-image','style','data-confluence-emoticon','data-confluence-image','data-height','data-width'], mark: ['data-color','style'],
       div:['data-pageport-toc','data-min-level','data-max-level','data-pageport-panel'],
     },
@@ -65,7 +72,7 @@ export function cleanHtml(html) {
     allowedStyles:{
       '*':{'text-align':blockStyle['text-align']},
       p:blockStyle, h1:blockStyle, h2:blockStyle, h3:blockStyle, h4:blockStyle, h5:blockStyle, h6:blockStyle,
-      td:cellStyle, th:cellStyle, col:{width:cellStyle.width}, table:{width:cellStyle.width},
+      td:cellStyle, th:cellStyle, col:{width:dimensionStyle}, table:layoutStyle, tr:layoutStyle,
       span:{color:colorValue,'font-size':[/^(?:10|12|14|16|18|20|24|28|32|40|48)px$/]}, mark:{'background-color':colorValue, color:[/^inherit$/]},
     },
     transformTags:{mark:(tagName,attribs)=>{
@@ -237,6 +244,7 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
   html=normalized.html;
   // Resolve images before sanitization strips unsafe or remote image schemes.
   const raw = load(html);
+  normalizeTableLayout(raw);
   const remoteImages=raw('span[data-confluence-image]').length;
   if(remoteImages) warnings.push(`${remoteImages} 处图片仅含在线引用，未归档到本机。发布会保留原地址，显示可能需要目标站点认证；离线保存前需补充本地图片。`);
   raw('span[data-pageport-missing-image]').each((_,node)=>{

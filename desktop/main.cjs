@@ -721,6 +721,7 @@ async function start() {
         }
       } finally {dialog.showSaveDialog=originalSaveDialog;}
       await writeFile(path.join(output,'desktop-saved.png'),(await window.webContents.capturePage()).toPNG());
+      const layoutTable='<table style="width:720px;table-layout:fixed"><colgroup><col style="width:180px"><col style="width:540px"></colgroup><tbody><tr style="height:48px"><th style="width:180px;padding:6px 8px;vertical-align:middle">Column A</th><th style="width:540px">Column B</th></tr><tr><td colspan="2" style="height:64px">Merged content</td></tr></tbody></table>';
       await window.webContents.executeJavaScript(`(() => {
         const input=document.querySelector('.sidebar input[type="file"]'), transfer=new DataTransfer();
         transfer.items.add(new File(['<h1>在线引用验证</h1><p>正文<span data-confluence-image="https://example.invalid/remote.png?version=2&amp;preview=true" data-width="480" data-height="240">图片</span></p><p><img src="data:image/png;base64,${brandBytes.toString('base64')}" width="160" height="80"></p>'],'online-reference.html',{type:'text/html'}));
@@ -732,11 +733,38 @@ async function start() {
         await new Promise(resolve=>setTimeout(resolve,100));
       }
       await window.webContents.executeJavaScript(`(() => {
+        const editor=document.querySelector('.prose-editor');
+        editor.focus();const selection=getSelection(),range=document.createRange();range.selectNodeContents(editor);range.collapse(false);selection.removeAllRanges();selection.addRange(range);
+        const data=new DataTransfer();data.setData('text/html',${JSON.stringify(layoutTable)});
+        editor.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));
+      })()`);
+      await window.webContents.executeJavaScript(`(() => {
         const editor=document.querySelector('.prose-editor');editor.focus();
         const selection=getSelection(),range=document.createRange();range.selectNodeContents(editor);range.collapse(false);selection.removeAllRanges();selection.addRange(range);
         document.execCommand('insertText',false,' edited');
       })()`);
       await new Promise(resolve=>setTimeout(resolve,2200));
+      const layoutSyncDeadline=Date.now()+15000;
+      while(Date.now()<layoutSyncDeadline) {
+        if(await window.webContents.executeJavaScript(`document.querySelector('.preview-state')?.textContent==='发布稿已同步'`))break;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+      state.tableLayout=await window.webContents.executeJavaScript(`(() => {
+        const table=document.querySelector('.prose-editor table');
+        const cols=Array.from(table?.querySelectorAll(':scope > colgroup > col') || []).map(col=>col.style.width);
+        return {width:table?.style.width,columns:cols,passed:table?.style.width==='720px' && cols.join(',')==='180px,540px' &&
+          table.querySelector('tr').style.height==='48px' && table.querySelector('th').style.padding==='6px 8px' &&
+          table.querySelector('td').getAttribute('colspan')==='2'};
+      })()`);
+      const layoutSource=await window.webContents.executeJavaScript(`(async () => {
+        Array.from(document.querySelectorAll('.tabs button')).find(button=>button.textContent.includes('源文件')).click();
+        await new Promise(resolve=>setTimeout(resolve,200));
+        const source=document.querySelector('textarea[aria-label="文档源文件"]')?.value || '';
+        Array.from(document.querySelectorAll('.tabs button')).find(button=>button.textContent.includes('编辑预览')).click();
+        return /<col[^>]*width:\\s*180px/.test(source) && /<col[^>]*width:\\s*540px/.test(source) && /height:\\s*48px/.test(source) && /padding:\\s*6px 8px/.test(source);
+      })()`);
+      state.tableLayout.sourcePreserved=layoutSource;
+      state.tableLayout.passed=state.tableLayout.passed && layoutSource;
       state.remoteImages=await window.webContents.executeJavaScript(`(() => {
         const editor=document.querySelector('.prose-editor'), marker=editor.querySelector('[data-confluence-image]');
         const image=editor.querySelector('img[src^="data:"]');
@@ -746,7 +774,7 @@ async function start() {
       })()`);
       await writeFile(path.join(output,'desktop-online-reference.png'),(await window.webContents.capturePage()).toPNG());
       await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
-      if(!state.navigation.every(item=>item.passed) || !state.saving.every(item=>item.passed) || !state.remoteImages.passed)throw new Error('Outline navigation, image export or online image preservation failed.');
+      if(!state.navigation.every(item=>item.passed) || !state.saving.every(item=>item.passed) || !state.remoteImages.passed || !state.tableLayout.passed)throw new Error('Outline navigation, image export, online image or table layout preservation failed.');
     }
     await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
     await writeFile(path.join(output,'desktop.png'),(await window.webContents.capturePage()).toPNG());

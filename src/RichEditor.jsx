@@ -26,7 +26,7 @@ import { TableOfContents } from './TableOfContents.jsx';
 import {
   Indent, Panel, Status, MissingImage, RemoteImage, SearchReplace, PANEL_TYPES, STATUS_COLORS,
   getSearch, updateSearch, stepSearch, replaceMatches, countWords,
-  ConfluenceTable, ConfluenceTableCell, ConfluenceTableHeader,
+  ConfluenceTable, ConfluenceTableCell, ConfluenceTableHeader, ConfluenceTableRow,
 } from './editor-extensions.js';
 import './rich-editor.css';
 import { shortcutLabel } from './platform.js';
@@ -115,8 +115,8 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
     extensions:[
       StarterKit.configure({link:{openOnClick:false,autolink:false},heading:{levels:[1,2,3,4,5,6]}}),
       LocalImage.configure({allowBase64:true}),
-      TableKit.configure({table:false,tableCell:false,tableHeader:false}),
-      ConfluenceTable, ConfluenceTableCell, ConfluenceTableHeader,
+      TableKit.configure({table:false,tableCell:false,tableHeader:false,tableRow:false}),
+      ConfluenceTable, ConfluenceTableCell, ConfluenceTableHeader, ConfluenceTableRow,
       TaskList,TaskItem.configure({nested:true}),
       TextAlign.configure({types:['heading','paragraph']}),
       Highlight.configure({multicolor:true}),Subscript,Superscript,

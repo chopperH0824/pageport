@@ -1,5 +1,6 @@
 import { load } from 'cheerio';
 import { imageDimensions } from './image-dimensions.js';
+import { normalizeTableLayout, tableLayoutStyle } from './table-layout.js';
 import { fileTypeFromBuffer } from 'file-type';
 
 const emoticons = {
@@ -7,7 +8,7 @@ const emoticons = {
   smile:'☺', sad:'☹', cheeky:'😛', laugh:'😁', wink:'😉', 'thumbs-up':'👍', 'thumbs-down':'👎',
   'yellow-star':'★', 'red-star':'★', 'green-star':'★', 'blue-star':'★', heart:'♥', 'broken-heart':'♡',
 };
-const keptStyle = new Set(['text-align', 'color', 'background-color', 'width']);
+const keptStyle = new Set(['text-align', 'color', 'background-color']);
 const embeddedImageTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 
 function referenceKeys(reference) {
@@ -46,16 +47,16 @@ function decodePart(headers, body) {
 }
 
 function cleanStyle(style) {
-  return String(style || '').split(';').map(part => {
+  const ordinary = String(style || '').split(';').map(part => {
     const split = part.indexOf(':');
     if (split < 0) return '';
     const key = part.slice(0, split).trim().toLowerCase();
     const value = part.slice(split + 1).replace(/!important/ig, '').trim();
     if (!keptStyle.has(key) || !value) return '';
-    if (key === 'width' && !/^\d+(?:\.\d+)?%$/.test(value)) return '';
     if (key === 'text-align' && !/^(left|center|right|justify)$/i.test(value)) return '';
     return `${key}: ${value}`;
   }).filter(Boolean).join('; ');
+  return [ordinary,tableLayoutStyle(style)].filter(Boolean).join('; ');
 }
 
 export async function extractConfluenceExport(buffer) {
@@ -92,6 +93,7 @@ export async function extractConfluenceExport(buffer) {
   }
   if (!html) return null;
   const page = load(html);
+  normalizeTableLayout(page);
   page('img').each((_, node) => {
     const item = page(node);
     const dimensions = imageDimensions(item);

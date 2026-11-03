@@ -24,6 +24,7 @@ const latestJsonPath = path.join(siteDir, "downloads", "latest.json");
 const indexPath = path.join(siteDir, "index.html");
 
 const HIGHLIGHTS = [
+  "保留 Confluence Word 表格的像素列宽、表宽、明确行高和单元格间距，编辑后继续保留。",
   "支持按空间与页面名称识别 Confluence 链接，不再要求手动寻找 pageId。",
   "保留图片每次引用的显示宽高，修复发布后图片按原始像素放大的问题。",
   "修复混合图片 Word 导入：在线图片引用在编辑与发布同步后保留，不再误报缺图阻断。",
