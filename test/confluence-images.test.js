@@ -10,6 +10,7 @@ import { convertDocument, hash } from '../server/convert.js';
 import { exportDocument } from '../server/export.js';
 import { toMarkdown } from '../src/markdown.js';
 import { createApp } from '../server/app.js';
+import { normalizeClipboardHtml } from '../server/online-document.js';
 
 const png = await readFile(new URL('../public/brand.png', import.meta.url));
 const boundary = 'pageport-public-confluence-test';
@@ -65,6 +66,30 @@ test('Confluence MIME uses image bytes rather than declared type and accepts CID
   });
 });
 
+test('mixed embedded and online Confluence images survive editor synchronization without fetching', async () => {
+  const address='https://wiki.example.invalid/attachments/remote.png?version=2&preview=true';
+  const buffer=mimeDocument(`<h1>Mixed images</h1><p><img src="embedded"></p><p><img src="${address.replaceAll('&','&amp;')}" height="240"></p>`,[
+    {location:'file:///embedded'},
+  ]);
+  let doc=await convertDocument({originalname:'mixed.doc',buffer});
+  for(let iteration=0;iteration<3;iteration++) {
+    assert.equal(doc.blockers.length,0);
+    assert.equal(doc.assets.length,1);
+    assert.equal(doc.assets[0].digest,hash(png));
+    const preview=load(doc.preview);
+    assert.equal(preview('img').length,1);
+    assert.equal(preview('[data-confluence-image]').attr('data-confluence-image'),address);
+    assert.equal(preview('[data-confluence-image]').attr('data-height'),'240');
+    assert.equal(preview('[data-pageport-missing-image]').length,0);
+    const storage=load(doc.storage,{xmlMode:true});
+    assert.equal(storage('ri\\:url').attr('ri:value'),address);
+    assert.equal(storage('ac\\:image[ac\\:height="240"]').length,1);
+    assert.ok(doc.warnings.some(warning=>warning.includes('1 处图片仅含在线引用')));
+    await assert.rejects(exportDocument(doc,'docx'),/尚未归档/);
+    doc=await convertDocument({originalname:'edited.md',buffer:Buffer.from(toMarkdown(normalizeClipboardHtml(doc.preview).html))});
+  }
+});
+
 test('ambiguous MIME filenames and non-image attachments never become guessed images', async () => {
   const buffer = mimeDocument('<h1>Images</h1><img src="same"><img src="invalid"><img src="https://remote.invalid/same">', [
     { location: 'file:///first/same' },
@@ -104,7 +129,7 @@ test('Confluence MIME images upload as attachments before protected publication 
   t.after(async () => { app.locals.dispose(); await rm(dir, { recursive: true, force: true }); });
   const agent = request.agent(app);
   const bootstrap = (await agent.get('/api/bootstrap')).body;
-  const input = mimeDocument('<h1>Public test</h1><img src="image-id"><img src="image-id">', [{ location: 'file:///image-id' }]);
+  const input = mimeDocument('<h1>Public test</h1><img src="image-id"><img src="image-id"><img src="https://wiki.example.com/remote.png">', [{ location: 'file:///image-id' }]);
   const converted = await agent.post('/api/convert').set('X-CSRF-Token', bootstrap.csrf).attach('document', input, 'public.doc').expect(200);
   assert.equal(converted.body.blockers.length, 0);
   assert.equal(converted.body.stats.images, 1);
@@ -116,5 +141,6 @@ test('Confluence MIME images upload as attachments before protected publication 
   assert.ok(uploads[0].bytes.equals(png));
   const storage = load(page.body.storage.value, { xmlMode: true });
   assert.equal(storage('ri\\:attachment').length, 2);
+  assert.equal(storage('ri\\:url').attr('ri:value'),'https://wiki.example.com/remote.png');
   storage('ri\\:attachment').each((_, node) => assert.equal(storage(node).attr('ri:filename'), uploads[0].name));
 });

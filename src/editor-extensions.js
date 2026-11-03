@@ -111,6 +111,19 @@ export const Status=Node.create({
   renderText:({node})=>node.attrs.text,
 });
 
+export const RemoteImage=Node.create({
+  name:'remoteImage',group:'inline',inline:true,atom:true,
+  addAttributes:()=>({
+    address:{default:'',parseHTML:element=>element.getAttribute('data-confluence-image'),renderHTML:attrs=>({'data-confluence-image':attrs.address})},
+    height:{default:'',parseHTML:element=>element.getAttribute('data-height') || '',renderHTML:attrs=>({'data-height':attrs.height})},
+  }),
+  parseHTML:()=>[{tag:'span[data-confluence-image]',getAttrs:element=>{
+    try {return new URL(element.getAttribute('data-confluence-image')).protocol==='https:'?null:false;} catch {return false;}
+  }}],
+  renderHTML:({HTMLAttributes})=>['span',mergeAttributes(HTMLAttributes,{title:'在线图片未归档，发布保留原地址，显示可能需要目标站点认证'}),'[在线图片]'],
+  renderText:()=>'[在线图片]',
+});
+
 export const MissingImage=Node.create({
   name:'missingImage',group:'inline',inline:true,atom:true,
   addAttributes:()=>({

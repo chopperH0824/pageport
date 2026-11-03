@@ -24,6 +24,8 @@ const latestJsonPath = path.join(siteDir, "downloads", "latest.json");
 const indexPath = path.join(siteDir, "index.html");
 
 const HIGHLIGHTS = [
+  "修复混合图片 Word 导入：在线图片引用在编辑与发布同步后保留，不再误报缺图阻断。",
+  "内嵌图片作为附件发布；在线图片保留原地址并提示认证边界，不自动下载。",
   "修复左侧目录跳转，支持从编辑、发布预览、源文件和检查项定位到正文标题。",
   "本地保存可选 DOCX、Word 兼容 DOC 或 Markdown，已载入的本地图片随文件内嵌保存。",
   "DOCX 导出逐张核对内嵌图片完整性；缺图或仅有远程地址时明确提示，不静默丢图。",

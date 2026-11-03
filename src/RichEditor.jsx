@@ -24,7 +24,7 @@ import {
 import { toMarkdown } from './markdown.js';
 import { TableOfContents } from './TableOfContents.jsx';
 import {
-  Indent, Panel, Status, MissingImage, SearchReplace, PANEL_TYPES, STATUS_COLORS,
+  Indent, Panel, Status, MissingImage, RemoteImage, SearchReplace, PANEL_TYPES, STATUS_COLORS,
   getSearch, updateSearch, stepSearch, replaceMatches, countWords,
   ConfluenceTable, ConfluenceTableCell, ConfluenceTableHeader,
 } from './editor-extensions.js';
@@ -111,7 +111,7 @@ export default function RichEditor({content,contentVersion,disabled,onChange,onE
       TaskList,TaskItem.configure({nested:true}),
       TextAlign.configure({types:['heading','paragraph']}),
       Highlight.configure({multicolor:true}),Subscript,Superscript,
-      TextStyle,Color,FontSize,Indent,Panel,Status,MissingImage,SearchReplace,
+      TextStyle,Color,FontSize,Indent,Panel,Status,MissingImage,RemoteImage,SearchReplace,
       TableOfContents,
     ],
     content:normalizeClipboardHtml(content).html,

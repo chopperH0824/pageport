@@ -721,8 +721,31 @@ async function start() {
         }
       } finally {dialog.showSaveDialog=originalSaveDialog;}
       await writeFile(path.join(output,'desktop-saved.png'),(await window.webContents.capturePage()).toPNG());
+      await window.webContents.executeJavaScript(`(() => {
+        const input=document.querySelector('.sidebar input[type="file"]'), transfer=new DataTransfer();
+        transfer.items.add(new File(['<h1>在线引用验证</h1><p>正文<span data-confluence-image="https://example.invalid/remote.png?version=2&amp;preview=true" data-height="240">图片</span></p>'],'online-reference.html',{type:'text/html'}));
+        input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+      })()`);
+      const remoteDeadline=Date.now()+15000;
+      while(Date.now()<remoteDeadline) {
+        if(await window.webContents.executeJavaScript(`!!document.querySelector('.prose-editor [data-confluence-image]')`))break;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+      await window.webContents.executeJavaScript(`(() => {
+        const editor=document.querySelector('.prose-editor');editor.focus();
+        const selection=getSelection(),range=document.createRange();range.selectNodeContents(editor);range.collapse(false);selection.removeAllRanges();selection.addRange(range);
+        document.execCommand('insertText',false,' edited');
+      })()`);
+      await new Promise(resolve=>setTimeout(resolve,2200));
+      state.remoteImages=await window.webContents.executeJavaScript(`(() => {
+        const editor=document.querySelector('.prose-editor'), marker=editor.querySelector('[data-confluence-image]');
+        return {passed:!!marker && marker.getAttribute('data-confluence-image')==='https://example.invalid/remote.png?version=2&preview=true' && marker.getAttribute('data-height')==='240' &&
+          !editor.querySelector('img,[data-pageport-missing-image]') && document.querySelector('.preview-state').textContent==='发布稿已同步' &&
+          !document.body.textContent.includes('有 1 项内容需要处理') && !document.body.textContent.includes('有待处理的阻断项')};
+      })()`);
+      await writeFile(path.join(output,'desktop-online-reference.png'),(await window.webContents.capturePage()).toPNG());
       await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
-      if(!state.navigation.every(item=>item.passed) || !state.saving.every(item=>item.passed))throw new Error('Outline navigation or local image export failed.');
+      if(!state.navigation.every(item=>item.passed) || !state.saving.every(item=>item.passed) || !state.remoteImages.passed)throw new Error('Outline navigation, image export or online image preservation failed.');
     }
     await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
     await writeFile(path.join(output,'desktop.png'),(await window.webContents.capturePage()).toPNG());

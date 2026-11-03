@@ -38,5 +38,5 @@ if (!state.brand?.loaded || state.brand.source !== '/brand.png' ||
 if (!state.toc?.passed || !state.editor?.passed || !state.updates?.passed || !state.settings?.passed ||
   !state.backups?.passed || !state.restore?.passed || !state.focusRestore || !state.sidebarCollapse?.passed || !state.blank?.passed ||
   !state.spacing?.every(item=>item.passed) || state.toc.narrowOverflow) throw new Error('Desktop smoke assertions failed.');
-if(!state.navigation?.every(item=>item.passed) || state.saving?.length!==3 || !state.saving.every(item=>item.passed)) throw new Error('Desktop navigation or Word image saving failed.');
+if(!state.navigation?.every(item=>item.passed) || state.saving?.length!==3 || !state.saving.every(item=>item.passed) || !state.remoteImages?.passed) throw new Error('Desktop navigation or image preservation failed.');
 console.log('Desktop editing, TOC, search, document spacing, sidebar collapse/expand, blank document, backups and backup restore, focus restore, settings and update UI checks passed.');

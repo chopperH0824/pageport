@@ -9,6 +9,7 @@
 .cell-colour{display:flex;align-items:center;gap:5px;font-size:11px;margin:0 5px}
 .cell-colour input{width:26px;height:24px;padding:1px}
 [data-pageport-missing-image]{color:#a83232;background:#fff0ee;border-bottom:1px dashed #cf7770;padding:1px 4px}
+[data-confluence-image]{color:#536678;background:#edf3f7;border-bottom:1px dashed #8da3b5;padding:1px 4px}
 .format-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:3px;padding:4px 8px;border-bottom:1px solid #e6ecec;background:#fcfdfd;flex-shrink:0}
 .format-group{display:flex;align-items:center;gap:1px;padding-right:6px;margin-right:3px;border-right:1px solid #e2e9e8;min-height:30px}
 .format-group:last-child{border:0;margin:0;padding:0}

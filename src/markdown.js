@@ -29,6 +29,10 @@ export function createSerializer() {
     filter:node=>node.nodeName==='SPAN' && node.hasAttribute('data-pageport-missing-image'),
     replacement:(_content,node)=>`<span data-pageport-missing-image="${escapeHtml(node.getAttribute('data-pageport-missing-image'))}">${escapeHtml(node.textContent)}</span>`,
   });
+  service.addRule('remoteImage', {
+    filter:node=>node.nodeName==='SPAN' && node.hasAttribute('data-confluence-image'),
+    replacement:(_content,node)=>`<span data-confluence-image="${escapeHtml(node.getAttribute('data-confluence-image'))}" data-height="${escapeHtml(node.getAttribute('data-height') || '')}">在线图片</span>`,
+  });
   // Wrap the converted content rather than copying outerHTML, so Markdown characters stay escaped.
   service.addRule('extendedInline', {
     filter:node=>['U','MARK','SUB','SUP'].includes(node.nodeName) || (node.nodeName==='SPAN' && node.hasAttribute('style')),

@@ -236,6 +236,8 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
   html=normalized.html;
   // Resolve images before sanitization strips unsafe or remote image schemes.
   const raw = load(html);
+  const remoteImages=raw('span[data-confluence-image]').length;
+  if(remoteImages) warnings.push(`${remoteImages} 处图片仅含在线引用，未归档到本机。发布会保留原地址，显示可能需要目标站点认证；离线保存前需补充本地图片。`);
   raw('span[data-pageport-missing-image]').each((_,node)=>{
     const label=raw(node).attr('data-pageport-missing-image') || '在线图片';
     blockers.push(`图片「${label}」尚未归档。请删除占位标记并插入本地图片后再发布。`);
@@ -377,7 +379,7 @@ export async function convertDocument(file, imageFiles = [], scratchRoot, { allo
     let address='';
     try { address=new URL(item.attr('data-confluence-image') || '').href; } catch { address=''; }
     if (!address.startsWith('https://')) return;
-    item.replaceWith(`<img alt="${escape(item.text() || '图片')}" src="${escape(address)}" />`);
+    item.text(`[在线图片：${item.text() || '图片'}]`);
   });
   storageTree('span[data-pageport-status]').each((_,node)=>{
     const item=storageTree(node), colour=statusColours[item.attr('data-pageport-status')] || 'Grey';
