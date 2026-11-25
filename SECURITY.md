@@ -59,6 +59,10 @@ from earlier versions are removed only after an explicit policy is saved.
 - A lost PUT response has an uncertain result. Inspect the page before retrying.
 - Confluence may normalize markup. Structural readback is not visual verification.
 - Sessions expire after 30 minutes, not on an inactivity-sliding schedule.
+- Only the launch-authenticated desktop can resume its in-memory document after
+  session rotation. New session and CSRF tokens are issued, old publish plans
+  are invalid, and publishing is never retried. Logout and app exit clear the
+  in-memory workspace. Web and browser-gateway expiry behavior is unchanged.
 - Single-instance in-memory sessions; horizontal scaling is not supported.
 
 ## Dependency audit

@@ -122,6 +122,7 @@ async function cleanupBackups(dataDir, retentionDays) {
 export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || path.resolve('data'), accessPassword = process.env.ACCESS_PASSWORD || '', allowedHosts = (process.env.CONFLUENCE_HOSTS || '').split(',').map(s => s.trim()).filter(Boolean), production = process.env.NODE_ENV === 'production', desktopToken = process.env.PAGEPORT_DESKTOP_TOKEN || '', gatewayGuard = null } = {}) {
   if (production && accessPassword.length < 16) throw new Error('Production requires ACCESS_PASSWORD with at least 16 characters.');
   const app = express(), sessions = new Map();
+  let desktopSession;
   let activeConversions = 0;
   // One conversion worker at a time per slot; shared by uploads and by loading
   // a local backup into the editor.
@@ -147,16 +148,29 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
   const session = (req,res,next) => {
     const cookieName = gatewayGuard ? `pageport-${req.socket.localPort}` : 'pageport';
     const cookie = req.headers.cookie?.split(';').map(s=>s.trim()).find(s=>s.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
-    let s = cookie && sessions.get(cookie);
-    if (!s || s.expires < Date.now()) {
+    const now = Date.now();
+    const previous = cookie && sessions.get(cookie);
+    const validCookie = previous && previous.expires > now;
+    // Concurrent requests with the old cookie must all converge on the
+    // same replacement session once the desktop credentials have rotated.
+    let s = validCookie ? previous : desktopToken ? desktopSession : undefined;
+    if (!s || s.expires <= now) {
       if (cookie) sessions.delete(cookie);
-      for (const [key,value] of sessions) if (value.expires < Date.now()) sessions.delete(key);
+      for (const [key,value] of sessions) if (value.expires <= now) sessions.delete(key);
       if (sessions.size >= 100) return next(new AppError('当前会话较多，请稍后再试。',503));
       const id = random();
-      s = { id, csrf: random(), authenticated: localAccess || !accessPassword, expires: Date.now()+sessionLifetime, documents: new Map(), plans: new Map() };
+      // The per-launch desktop secret has already been checked. Keep its
+      // in-memory document across credential rotation, never its publish plans.
+      const documents = desktopToken && desktopSession ? desktopSession.documents : new Map();
+      s = { id, csrf: random(), authenticated: localAccess || !accessPassword, expires: now+sessionLifetime, documents, plans: new Map() };
+      if (desktopToken) {
+        if (desktopSession) sessions.delete(desktopSession.id);
+        desktopSession = s;
+      }
       sessions.set(id,s);
-      res.cookie(cookieName,id,{httpOnly:true,secure:production && !localAccess,sameSite:'strict',maxAge:sessionLifetime,path:'/'});
     }
+    if (!validCookie) res.cookie(cookieName,s.id,{httpOnly:true,secure:production && !localAccess,sameSite:'strict',maxAge:s.expires-now,path:'/'});
+    req.validSessionCookie = validCookie;
     req.session = s;
     next();
   };
@@ -168,7 +182,10 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
         const expected = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
         if (req.headers.origin !== new URL(expected).origin) return next(new AppError('请求来源不匹配，请从本站重新打开。',403));
       }
-      if (!safeEqual(req.headers['x-csrf-token'],req.session.csrf)) return next(new AppError('会话已失效，请刷新页面。',403));
+      if (!safeEqual(req.headers['x-csrf-token'],req.session.csrf) || (desktopToken && !req.validSessionCookie)) {
+        if (desktopToken) return res.status(403).json({code:'DESKTOP_SESSION_EXPIRED',error:'本地工作区会话已过期。'});
+        return next(new AppError('会话已失效，请刷新页面。',403));
+      }
     }
     next();
   });
@@ -354,6 +371,7 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
   });
   app.post('/api/logout',(req,res)=>{
     sessions.delete(req.session.id);
+    if (desktopSession === req.session) desktopSession = undefined;
     res.clearCookie('pageport',{path:'/'});
     res.json({ok:true});
   });
@@ -362,7 +380,12 @@ export function createApp({ fetcher = fetch, dataDir = process.env.DATA_DIR || p
     if (err.type === 'entity.too.large') return res.status(413).json({error:'请求体积过大。'});
     res.status(err.status || 500).json({error:err instanceof AppError ? err.message : '处理失败，请稍后再试。未确认结果时请先检查目标页面。'});
   });
-  const timer = setInterval(()=>{ for(const [id,s] of sessions) if(s.expires < Date.now()) sessions.delete(id); },60000);
+  const timer = setInterval(()=>{
+    for (const [id,s] of sessions) if (s.expires <= Date.now()) {
+      s.plans.clear();
+      sessions.delete(id);
+    }
+  },60000);
   const backupTimer = setInterval(()=>{ cleanupBackups(dataDir).catch(()=>{}); },60*60*1000);
   timer.unref();
   backupTimer.unref();

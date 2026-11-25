@@ -10,6 +10,7 @@ import './style.css';
 import RichEditor from './RichEditor.jsx';
 import { toMarkdown } from './markdown.js';
 import { navigateToHeading } from './heading-navigation.js';
+import { createWorkspaceApi } from './workspace-api.js';
 import SettingsPanel from './SettingsPanel.jsx';
 import './brand-theme.css';
 
@@ -146,7 +147,7 @@ function HoverTip() {
 }
 
 function App() {
-  const [boot,setBoot] = useState(null), [csrf,setCsrf] = useState(''), [access,setAccess] = useState('');
+  const [boot,setBoot] = useState(null), [access,setAccess] = useState('');
   const [error,setError] = useState(''), [notice,setNotice] = useState('');
   const [document,setDocument] = useState(null), [file,setFile] = useState(null), [images,setImages] = useState([]);
   const [busy,setBusy] = useState(''), [tab,setTab] = useState('preview'), [source,setSource] = useState('');
@@ -168,18 +169,9 @@ function App() {
   const rich = useRef(null), draft = useRef({revision:0,applied:0,source:'',images:[],origin:'rich'}), pending = useRef(null);
   const input = useRef(), imageInput = useRef(), generation = useRef(0), initialDemoRequested = useRef(false);
   const fileToken = useRef(null), fileHandle = useRef(null);
-  const csrfRef = useRef('');
-  async function api(route, options = {}) {
-    const { json, ...rest } = options;
-    const response = await fetch(`/api${route}`, {
-      ...rest,
-      headers: { 'X-CSRF-Token': csrfRef.current, ...(json ? {'Content-Type':'application/json'} : {}), ...rest.headers },
-      ...(json ? {body:JSON.stringify(json)} : {}),
-    });
-    const data = await response.json().catch(()=>({error:'服务器返回了无效响应。'}));
-    if (!response.ok) throw new Error(data.error || '请求失败，请稍后再试。');
-    return data;
-  }
+  const [{api,bootstrap}] = useState(()=>createWorkspaceApi({onRecovery:()=>{
+    setPlan(null);setConfirmTitle('');setAck(false);setModal(false);
+  }}));
   useEffect(()=>{ storage.set('pageport-doc-col',String(leftWidth)); },[leftWidth]);
   useEffect(()=>{ storage.set('pageport-publish-col',String(rightWidth)); },[rightWidth]);
   useEffect(()=>{ storage.set('pageport-doc-open',leftOpen?'1':'0'); },[leftOpen]);
@@ -336,10 +328,7 @@ function App() {
         buffer=new TextEncoder().encode(toMarkdown(snapshot.preview));
         mime='text/markdown';
       } else {
-        const response=await fetch(`/api/documents/${encodeURIComponent(snapshot.id)}/export/${format}`,{
-          method:'POST',headers:{'X-CSRF-Token':csrfRef.current},
-        });
-        if(!response.ok)throw new Error((await response.json()).error || '导出失败。');
+        const response=await api(`/documents/${encodeURIComponent(snapshot.id)}/export/${format}`,{method:'POST',raw:true});
         buffer=new Uint8Array(await response.arrayBuffer());mime=response.headers.get('content-type');
       }
       const finish=(name,token,handle)=>{
@@ -433,10 +422,8 @@ function App() {
     window.addEventListener('pointercancel',stop);
   }
   useEffect(()=>{
-    fetch('/api/bootstrap').then(r=>r.json()).then(data=>{
-      setBoot(data); csrfRef.current = data.csrf; setCsrf(data.csrf);
-    }).catch(()=>setError('无法连接服务，请刷新重试。'));
-  },[]);
+    bootstrap().then(setBoot).catch(()=>setError('无法连接服务，请刷新重试。'));
+  },[bootstrap]);
   useEffect(()=>{
     if (!boot?.authenticated || !boot.desktop || window.pageportDesktop?.platform !== 'win32' ||
       initialDemoRequested.current || document || busy) return;
@@ -455,7 +442,7 @@ function App() {
   },[busy]);
   async function login(event) {
     event.preventDefault();setBusy('login');setError('');
-    try {await api('/login',{method:'POST',json:{password:access}});setAccess('');setBoot(await api('/bootstrap'));}
+    try {await api('/login',{method:'POST',json:{password:access}});setAccess('');setBoot(await bootstrap());}
     catch(err){setError(err.message);}finally{setBusy('');}
   }
   async function check() {
@@ -542,7 +529,7 @@ function App() {
         <div className="sidebar-separator"/>
         <nav className="outline-nav" aria-label="文档大纲">{outline.map((item,i)=><button key={i} title={item.text || '未命名标题'} style={{paddingLeft:12+(item.level-1)*10}} onMouseDown={event=>event.preventDefault()} onClick={()=>{setTab('preview');setReadOnly(false);setHeadingTarget({pos:item.pos});setSidebar(false);}}>{item.text || '未命名标题'}</button>)}</nav>
         <div className="resize-handle" role="separator" aria-orientation="vertical" aria-label="拖动调整文档栏宽度" title="按住左右拖动，改变文档栏宽度" onPointerDown={e=>startResize('left',e)}/>
-        <div className="sidebar-bottom"><div className="format-label">支持格式</div><div className="format-list"><span>MD</span><span>HTML</span><span>DOCX</span><span>DOC</span><span>TXT</span></div><div className="workspace-user"><span className="avatar"><LockKeyhole size={15}/></span><div><strong>{boot.desktop?'本地工作区':'私有工作区'}</strong><small>会话将在 30 分钟后失效</small></div></div></div>
+        <div className="sidebar-bottom"><div className="format-label">支持格式</div><div className="format-list"><span>MD</span><span>HTML</span><span>DOCX</span><span>DOC</span><span>TXT</span></div><div className="workspace-user"><span className="avatar"><LockKeyhole size={15}/></span><div><strong>{boot.desktop?'本地工作区':'私有工作区'}</strong><small>{boot.desktop?'文档仅保留在本机内存':'会话将在 30 分钟后失效'}</small></div></div></div>
       </aside>
       {sidebar && <button className="sidebar-scrim" aria-label="关闭文档栏" onClick={()=>setSidebar(false)}/>}
       <main className="editor">

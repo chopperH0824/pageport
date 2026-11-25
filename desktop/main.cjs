@@ -773,7 +773,56 @@ async function start() {
           !document.body.textContent.includes('有 1 项内容需要处理') && !document.body.textContent.includes('有待处理的阻断项')};
       })()`);
       await writeFile(path.join(output,'desktop-online-reference.png'),(await window.webContents.capturePage()).toPNG());
+      // Remove the isolated window's session cookie to exercise the real 403
+      // and recovery path without waiting through the server's 30-minute TTL.
+      const sessionRequests=[];
+      isolatedSession.webRequest.onCompleted({urls:[`${origin}/api/*`]},({url,statusCode})=>{
+        sessionRequests.push([url.slice(origin.length),statusCode]);
+      });
+      await isolatedSession.cookies.remove(origin,'pageport');
+      await window.webContents.executeJavaScript(`(() => {
+        const editor=document.querySelector('.prose-editor');
+        window.sessionSmokeEditor=editor;
+        editor.focus();
+        const selection=getSelection(),range=document.createRange();
+        range.selectNodeContents(editor);range.collapse(false);selection.removeAllRanges();selection.addRange(range);
+        document.execCommand('insertText',false,' Session recovery unsaved edit');
+      })()`);
+      const recoveryDeadline=Date.now()+15000;
+      while(Date.now()<recoveryDeadline) {
+        if(sessionRequests.some(([url,status])=>url==='/api/convert?allowEmpty=1' && status===200) &&
+          await window.webContents.executeJavaScript(`document.querySelector('.preview-state')?.textContent==='发布稿已同步'`))break;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+      state.sessionRecovery=await window.webContents.executeJavaScript(`(() => {
+        const editor=window.sessionSmokeEditor;
+        const retained=editor===document.querySelector('.prose-editor') &&
+          editor.innerText.includes('Session recovery unsaved edit') && !!editor.querySelector('img[src^="data:"]');
+        return {retained,errors:[...document.querySelectorAll('[role="alert"]')].map(e=>e.textContent)};
+      })()`);
+      state.sessionRecovery.refreshed=sessionRequests.some(([url,status])=>url==='/api/bootstrap' && status===200) &&
+        sessionRequests.filter(([url])=>url==='/api/convert?allowEmpty=1').map(([,status])=>status).join(',')==='403,200';
+      await window.webContents.executeJavaScript(`document.querySelectorAll('.page-heading [role="tab"]')[1].click()`);
+      state.sessionRecovery.unsaved=await window.webContents.executeJavaScript(`document.querySelector('.source-toolbar span')?.textContent.includes('未导出') && document.querySelector('.source-view textarea')?.value.includes('Session recovery unsaved edit')`);
+      await writeFile(path.join(output,'desktop-session-restored.png'),(await window.webContents.capturePage()).toPNG());
+      await isolatedSession.cookies.remove(origin,'pageport');
+      await window.webContents.executeJavaScript(`(() => {
+        const input=document.querySelector('.sidebar input[type="file"]'), transfer=new DataTransfer();
+        transfer.items.add(new File(['# Next document\\n\\nImported after recovery.'],'next-document.md',{type:'text/markdown'}));
+        input.files=transfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+      })()`);
+      const nextDeadline=Date.now()+15000;
+      while(Date.now()<nextDeadline) {
+        if(await window.webContents.executeJavaScript(`document.querySelector('.prose-editor h1')?.textContent==='Next document'`))break;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+      state.sessionRecovery.nextImport=sessionRequests.filter(([url])=>url==='/api/convert').map(([,status])=>status).join(',')==='403,200' &&
+        !sessionRequests.some(([url])=>url==='/api/publish') && await window.webContents.executeJavaScript(`document.querySelector('.prose-editor h1')?.textContent==='Next document' && !document.querySelector('[role="alert"]')`);
+      isolatedSession.webRequest.onCompleted(null);
+      const recovery=state.sessionRecovery;
+      recovery.passed=recovery.retained && recovery.refreshed && recovery.unsaved && recovery.nextImport && !recovery.errors.length;
       await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
+      if(!recovery.passed)throw new Error('Desktop session recovery did not preserve the unsaved editor or allow another import.');
       if(!state.navigation.every(item=>item.passed) || !state.saving.every(item=>item.passed) || !state.remoteImages.passed || !state.tableLayout.passed)throw new Error('Outline navigation, image export, online image or table layout preservation failed.');
     }
     await writeFile(path.join(output,'desktop-smoke.json'),JSON.stringify(state,null,2));
