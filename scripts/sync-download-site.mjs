@@ -229,6 +229,7 @@ if (!sshHost || !/^[a-zA-Z0-9_][a-zA-Z0-9_.@-]*$/.test(sshHost)
   throw new Error("部署需要有效的 PAGEPORT_SSH_HOST 与绝对远程目录");
 }
 const shellQuote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+const sshOptions = ["-o", "ConnectTimeout=8"];
 
 // Never publish metadata that refers to files absent from the deployment.
 if (!serverPull) {
@@ -241,7 +242,7 @@ if (!serverPull) {
   }
 }
 console.log(`正在同步官网与安装包到 ${sshHost}:${remoteRoot} ...`);
-execFileSync("ssh", [sshHost, `mkdir -p ${remoteRoot}/downloads ${remoteRoot}/assets`], {
+execFileSync("ssh", [...sshOptions, sshHost, `mkdir -p ${remoteRoot}/downloads ${remoteRoot}/assets`], {
   stdio: "inherit"
 });
 const publishAssets = hasInstallers ? [...assets, ...gateways] : [];
@@ -256,21 +257,22 @@ for (const asset of publishAssets) {
       `test \"$(sha256sum ${shellQuote(partial)} | awk '{print $1}')\" = ${shellQuote(asset.sha256)}`,
       `mv -f ${shellQuote(partial)} ${shellQuote(remoteFile)}`
     ].join("; ");
-    execFileSync("ssh", [sshHost, command], { stdio: "inherit" });
+    execFileSync("ssh", [...sshOptions, sshHost, command], { stdio: "inherit" });
   } else {
     const localFile = path.join(releaseDir, asset.filename);
     execFileSync(
       "rsync",
-      ["-avz", localFile, `${sshHost}:${remoteFile}`],
+      ["-avz", "-e", `ssh ${sshOptions.join(" ")}`, localFile, `${sshHost}:${remoteFile}`],
       { stdio: "inherit" }
     );
   }
-  const remoteHash = execFileSync("ssh", [sshHost, `sha256sum ${remoteRoot}/downloads/${asset.filename}`],
+  const remoteHash = execFileSync("ssh", [...sshOptions, sshHost, `sha256sum ${remoteRoot}/downloads/${asset.filename}`],
     { encoding: "utf8" }).trim().split(/\s+/)[0];
   if (remoteHash !== asset.sha256) throw new Error(`服务器安装包摘要不一致：${asset.filename}`);
   execFileSync(
     "ssh",
     [
+      ...sshOptions,
       sshHost,
       `ln -sfn ${remoteRoot}/downloads/${asset.filename} ${remoteRoot}/downloads/${asset.latestAlias}`
     ],
@@ -279,7 +281,7 @@ for (const asset of publishAssets) {
 }
 execFileSync(
   "rsync",
-  ["-avz", "--exclude=.DS_Store", `${siteDir}/`, `${sshHost}:${remoteRoot}/`],
+  ["-avz", "-e", `ssh ${sshOptions.join(" ")}`, "--exclude=.DS_Store", `${siteDir}/`, `${sshHost}:${remoteRoot}/`],
   { stdio: "inherit" }
 );
 console.log("下载站同步完成：https://pageport.chopperh.me");
